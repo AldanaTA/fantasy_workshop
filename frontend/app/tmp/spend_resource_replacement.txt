@@ -1,0 +1,165 @@
+      // Execute spend resources
+      const instance = editingChar.contentInstances.find((inst) => inst.id === instanceId);
+      if (!instance) return;
+
+      if (!field.spendResources || field.spendResources.length === 0) {
+        toast.error('No resources configured for this action');
+        return;
+      }
+
+      // First pass: validate and calculate all resource changes
+      const resourceChanges: Array<{
+        instance: typeof editingChar.contentInstances[0];
+        fieldId: string;
+        fieldName: string;
+        oldValue: number;
+        newValue: number;
+        amount: number;
+      }> = [];
+
+      for (const resourceEntry of field.spendResources) {
+        if (!resourceEntry.resourcePath || !resourceEntry.amountFormula) {
+          toast.error('Invalid resource configuration');
+          return;
+        }
+
+        // Parse resource path
+        const resourcePath = resourceEntry.resourcePath.replace(/[{}]/g, '');
+        const parts = resourcePath.split('.');
+        
+        if (parts.length < 2) {
+          toast.error(`Invalid resource path: ${resourceEntry.resourcePath}`);
+          return;
+        }
+
+        // Find the target content and field
+        const contentName = parts[0].replace(/_/g, ' ');
+        const targetContentDef = content.find((c) => c.name === contentName);
+        
+        if (!targetContentDef) {
+          toast.error(`Content not found: ${contentName}`);
+          return;
+        }
+
+        let targetInstance = editingChar.contentInstances.find(
+          (inst) => inst.contentId === targetContentDef.id
+        );
+
+        if (!targetInstance) {
+          toast.error(`Instance not found: ${contentName}`);
+          return;
+        }
+
+        let currentInstance = targetInstance;
+        let currentContentDef = targetContentDef;
+
+        // Traverse nested content
+        for (let i = 1; i < parts.length - 1; i++) {
+          const fieldName = parts[i].replace(/_/g, ' ');
+          const fieldDef = currentContentDef.fields.find((f) => f.name === fieldName);
+
+          if (!fieldDef || fieldDef.type !== 'content') {
+            toast.error(`Invalid field path: ${resourceEntry.resourcePath}`);
+            return;
+          }
+
+          const nestedInstanceId = currentInstance.fieldValues[fieldDef.id] as string;
+          if (!nestedInstanceId) {
+            toast.error(`Field not set: ${fieldName}`);
+            return;
+          }
+
+          currentInstance = editingChar.contentInstances.find(
+            (inst) => inst.id === nestedInstanceId
+          );
+
+          if (!currentInstance) {
+            toast.error(`Instance not found in path: ${resourceEntry.resourcePath}`);
+            return;
+          }
+
+          currentContentDef = getContentDef(currentInstance.contentId);
+          if (!currentContentDef) {
+            toast.error(`Content definition not found`);
+            return;
+          }
+        }
+
+        // Get the final field
+        const finalFieldName = parts[parts.length - 1].replace(/_/g, ' ');
+        const targetField = currentContentDef.fields.find((f) => f.name === finalFieldName);
+        
+        if (!targetField || targetField.type !== 'numeric') {
+          toast.error(`Field not found or not numeric: ${finalFieldName}`);
+          return;
+        }
+
+        // Evaluate the amount formula
+        let amountFormula = evaluateFormulaForInstance(instanceId, resourceEntry.amountFormula);
+        let amount = 0;
+        
+        try {
+          amount = Function(`"use strict"; return (${amountFormula})`)();
+        } catch (e) {
+          console.error('Error evaluating amount formula:', e);
+          toast.error(`Error evaluating amount: ${resourceEntry.amountFormula}`);
+          return;
+        }
+
+        const currentValue = (currentInstance.fieldValues[targetField.id] as number) || 0;
+        const newValue = currentValue + amount;
+
+        // Check if we have enough resource (for negative amounts)
+        if (amount < 0 && newValue < 0) {
+          toast.error(`Not enough ${finalFieldName}!`, {
+            description: `Required: ${Math.abs(amount)}, Available: ${currentValue}`,
+          });
+          return;
+        }
+
+        resourceChanges.push({
+          instance: currentInstance,
+          fieldId: targetField.id,
+          fieldName: finalFieldName,
+          oldValue: currentValue,
+          newValue: newValue,
+          amount: amount,
+        });
+      }
+
+      // Second pass: apply all changes
+      let updatedInstances = [...editingChar.contentInstances];
+      
+      for (const change of resourceChanges) {
+        updatedInstances = updatedInstances.map((inst) => {
+          if (inst.id === change.instance.id) {
+            return {
+              ...inst,
+              fieldValues: {
+                ...inst.fieldValues,
+                [change.fieldId]: change.newValue,
+              },
+            };
+          }
+          return inst;
+        });
+      }
+
+      updateCharacter({ contentInstances: updatedInstances });
+
+      // Show notification
+      if (resourceChanges.length === 1) {
+        const change = resourceChanges[0];
+        const verb = change.amount < 0 ? 'Spent' : 'Gained';
+        toast.success(`${verb} ${Math.abs(change.amount)} ${change.fieldName}`, {
+          description: `${change.oldValue} → ${change.newValue}`,
+        });
+      } else {
+        const descriptions = resourceChanges.map((change) => {
+          const verb = change.amount < 0 ? 'Spent' : 'Gained';
+          return `${verb} ${Math.abs(change.amount)} ${change.fieldName}`;
+        });
+        toast.success('Resources Updated', {
+          description: descriptions.join(', '),
+        });
+      }
