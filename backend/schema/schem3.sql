@@ -131,7 +131,8 @@ CREATE TYPE campaign_event_type AS ENUM (
   'add_item',
   'remove_item',
   'note',
-  'custom'
+  'custom',
+  'unknown'
 );
 
 -- CAMPAIGN EVENT LOG (append-only)
@@ -142,7 +143,7 @@ CREATE TABLE IF NOT EXISTS campaign_event (
   user_id            UUID REFERENCES users(id) ON DELETE SET NULL,
   payload            JSONB NOT NULL DEFAULT '{}'::jsonb,
   content_version_map JSONB NOT NULL DEFAULT '{}'::jsonb,
-  event_type         campaign_event_type NOT NULL DEFAULT 'UNKNOWN',
+  event_type         campaign_event_type NOT NULL DEFAULT 'unknown',
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   idempotency_key    TEXT NOT NULL
 );

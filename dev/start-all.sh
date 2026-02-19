@@ -13,6 +13,11 @@ cd "${ROOT_DIR}/backend"
 ./start.sh
 
 echo ""
+echo ">>> Starting Redis"
+cd "${ROOT_DIR}/redis"
+./start.sh
+
+echo ""
 echo ">>> Starting API layer"
 cd "${ROOT_DIR}/api-layer"
 ./start.sh
