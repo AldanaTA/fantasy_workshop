@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    volumes:
+      - .:/app  
     container_name: fastapi
     restart: unless-stopped
     env_file:
