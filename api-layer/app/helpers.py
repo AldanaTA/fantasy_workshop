@@ -1,12 +1,11 @@
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
-import hashlib, hmac, secrets
+import hashlib, hmac, secrets, json
 import jwt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from conf import settings
-
 from uuid7 import uuid7
+from app.conf import settings
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -17,7 +16,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 def hash_refresh_token(raw: str) -> str:
-    # HMAC prevents rainbow-table style reuse if your DB is leaked.
     return hmac.new(settings.JWT_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()
 
 def create_access_token(*, sub: str, user_id: str) -> str:
@@ -49,6 +47,17 @@ async def require_user(creds: HTTPAuthorizationCredentials = Depends(bearer)) ->
         raise HTTPException(status_code=401, detail="Missing Authorization: Bearer token")
     return decode_access_token(creds.credentials)
 
+async def require_user_ws(token: str = Query(...)) -> dict:
+    # WebSocket: connect with ?token=<ACCESS_JWT>
+    return decode_access_token(token)
+
 def make_refresh_token() -> str:
-    # opaque token (not a JWT) — rotateable, revocable, and stored hashed in DB
+    # Opaque, revocable, rotateable; stored hashed in DB
     return secrets.token_urlsafe(48)
+
+# JSON helpers for redis caching
+def json_dumps(obj) -> str:
+    return json.dumps(obj, separators=(",", ":"), default=str)
+
+def json_loads(s: str):
+    return json.loads(s)

@@ -6,3 +6,4 @@ pydantic==2.7
 redis==5.0
 PyJWT==2.8
 uuid7==0.1.0
+psycopg==3.3.3
