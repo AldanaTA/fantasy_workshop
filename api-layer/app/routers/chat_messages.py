@@ -85,4 +85,4 @@ async def list_messages(
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
-    return out``
+    return out

@@ -4,7 +4,7 @@ import hashlib, hmac, secrets, json
 import jwt
 from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from uuid7 import uuid7
+from uuid_extensions import uuid7
 from app.conf import settings
 
 bearer = HTTPBearer(auto_error=False)

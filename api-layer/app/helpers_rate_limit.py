@@ -32,7 +32,6 @@ if tokens >= cost then
   tokens = tokens - cost
   allowed = 1
 else
-  allowed = 0
   local missing = cost - tokens
   if rate > 0 then
     retry_after = missing / rate
@@ -47,6 +46,7 @@ redis.call("EXPIRE", key, 3600)
 return {allowed, tokens, retry_after}
 """
 
+
 async def rate_limit_or_429(
     r: Redis,
     key: str,
@@ -56,12 +56,17 @@ async def rate_limit_or_429(
     cost: float = 1.0,
 ):
     now = time.time()
+
     allowed, _tokens, retry_after = await r.eval(
         _LUA_TOKEN_BUCKET,
-        numkeys=1,
-        keys=[key],
-        args=[rate_per_sec, burst, cost, now],
+        1,              # number of keys
+        key,            # KEYS[1]
+        rate_per_sec,   # ARGV[1]
+        burst,          # ARGV[2]
+        cost,           # ARGV[3]
+        now             # ARGV[4]
     )
+
     if int(allowed) != 1:
         ra = max(1, int(float(retry_after) + 0.999))
         raise HTTPException(
