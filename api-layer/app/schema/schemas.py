@@ -252,6 +252,7 @@ class TokenPairOut(BaseModel):
 class LoginIn(BaseModel):
     email: str
     display_name_if_new: Optional[str] = None
+    password: str = Field(min_length=8, max_length=128)
 
 class RefreshIn(BaseModel):
     refresh_token: str

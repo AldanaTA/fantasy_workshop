@@ -5,10 +5,23 @@ import jwt
 from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from uuid_extensions import uuid7
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 from app.conf import settings
 
 bearer = HTTPBearer(auto_error=False)
 
+ph = PasswordHasher()
+
+def hash_password(password: str) -> str:
+    return ph.hash(password)
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    try:
+        return ph.verify(stored_hash, password)
+    except VerifyMismatchError:
+        return False
+    
 def new_id() -> UUID:
     return uuid7()
 
