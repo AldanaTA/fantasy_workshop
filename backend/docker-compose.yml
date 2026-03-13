@@ -18,6 +18,7 @@ services:
       retries: 20
   pgadmin:
     image: dpage/pgadmin4
+    restart: unless-stopped
     ports:
       - "5050:80"
     environment:
