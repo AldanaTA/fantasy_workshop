@@ -9,6 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./schema:/docker-entrypoint-initdb.d
     ports:
       - "${DB_PORT}:5432"
     healthcheck:
