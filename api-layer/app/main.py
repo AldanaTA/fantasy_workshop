@@ -10,7 +10,7 @@ from app.routers.content import router as content_router
 
 from app.routers.campaigns import router as campaigns_router
 from app.routers.chat_messages import router as chat_http_router
-from app.routers.ws_chat import router as ws_router
+
 
 app = FastAPI(title="Generic TTRPG API Layer")
 
@@ -25,7 +25,7 @@ app.include_router(content_router)
 
 app.include_router(campaigns_router)
 app.include_router(chat_http_router)
-app.include_router(ws_router)
+
 
 @app.get("/health")
 async def health():
