@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './components/Login';
 import { MainApp } from './components/MainApp';
-import { userApi } from './api/userApi';
-import type { User } from './api/userApi';
+import { usersApi } from './api/usersApi';
+import type { User } from './api/models';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -13,7 +13,7 @@ function App() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const currentUser = await userApi.getCurrentUser();
+        const currentUser = await usersApi.get(localStorage.getItem('userId') || '');
         setUser(currentUser);
       } catch (error) {
         console.error('Failed to get current user:', error);

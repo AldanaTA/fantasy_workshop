@@ -1,6 +1,7 @@
+import { API_CONFIG } from './apiConfig';
 import type { ContentPack } from './models';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string) || '';
+const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT_PACKS;
 
 const authHeaders = (token?: string) => {
   const t = token ?? localStorage.getItem('authToken');
@@ -8,7 +9,7 @@ const authHeaders = (token?: string) => {
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = `${API_URL}${path}`;
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) } as Record<string, string>;
   const res = await fetch(url, { ...opts, headers });
   if (res.status === 204) return undefined as unknown as T;
@@ -21,13 +22,13 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 export const contentPacksApi = {
-  list: (limit = 50, offset = 0, token?: string) => request<ContentPack[]>(`/content/packs?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+  list: (limit = 50, offset = 0, token?: string) => request<ContentPack[]>(`?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
-  get: (id: string, token?: string) => request<ContentPack>(`/content/packs/${id}`, { method: 'GET', headers: authHeaders(token) }),
+  get: (id: string, token?: string) => request<ContentPack>(`/${id}`, { method: 'GET', headers: authHeaders(token) }),
 
-  create: (payload: Partial<ContentPack>, token?: string) => request<ContentPack>(`/content/packs`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+  create: (payload: Partial<ContentPack>, token?: string) => request<ContentPack>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
-  patch: (id: string, patch: Partial<ContentPack>, token?: string) => request<ContentPack>(`/content/packs/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
+  patch: (id: string, patch: Partial<ContentPack>, token?: string) => request<ContentPack>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 
-  delete: (id: string, token?: string) => request<void>(`/content/packs/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
+  delete: (id: string, token?: string) => request<void>(`/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
 };

@@ -1,6 +1,7 @@
+import { API_CONFIG } from './apiConfig';
 import type { CampaignChatMessage } from './models';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string) || '';
+const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CHAT;
 
 const authHeaders = (token?: string) => {
 	const t = token ?? localStorage.getItem('authToken');
@@ -8,7 +9,7 @@ const authHeaders = (token?: string) => {
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-	const url = `${API_BASE}${path}`;
+	const url = `${API_URL}${path}`;
 	const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) } as Record<string, string>;
 	const res = await fetch(url, { ...opts, headers });
 	if (res.status === 204) return undefined as unknown as T;
@@ -21,13 +22,13 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 function wsBase(): string {
-	if (!API_BASE) return '';
-	return API_BASE.replace(/^http/, 'ws');
+	if (!API_URL) return '';
+	return API_URL.replace(/^http/, 'ws');
 }
 
 export const chatApi = {
 	listMessages: (campaignId: string, limit = 50, offset = 0, token?: string) =>
-		request<CampaignChatMessage[]>(`/chat/campaigns/${campaignId}/messages?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+		request<CampaignChatMessage[]>(`/campaigns/${campaignId}/messages?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
 	connectCampaignChat: (campaignId: string, token?: string) => {
 		const base = wsBase() || (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;

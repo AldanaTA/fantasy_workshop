@@ -1,14 +1,14 @@
+import { API_CONFIG } from './apiConfig';
 import type { Game } from './models';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string) || '';
-
+const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_GAMES;
 const authHeaders = (token?: string) => {
   const t = token ?? localStorage.getItem('authToken');
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = `${API_URL}${path}`;
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) } as Record<string, string>;
   const res = await fetch(url, { ...opts, headers });
   if (res.status === 204) return undefined as unknown as T;
@@ -21,11 +21,11 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 export const gamesApi = {
-  list: (limit = 50, offset = 0, token?: string) => request<Game[]>(`/games?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+  list: (limit = 50, offset = 0, token?: string) => request<Game[]>(`?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
-  create: (payload: Partial<Game>, token?: string) => request<Game>(`/games`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+  create: (payload: Partial<Game>, token?: string) => request<Game>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
-  patch: (id: string, patch: Partial<Game>, token?: string) => request<Game>(`/games/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
+  patch: (id: string, patch: Partial<Game>, token?: string) => request<Game>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 
-  delete: (id: string, token?: string) => request<void>(`/games/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
+  delete: (id: string, token?: string) => request<void>(`/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
 };

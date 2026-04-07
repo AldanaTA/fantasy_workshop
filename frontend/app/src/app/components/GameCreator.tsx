@@ -24,7 +24,7 @@ import {
   BookOpen,
   Library,
 } from "lucide-react";
-import { createGame, updateGame } from "../api/gameApi";
+import { create, patch} from "../api/gamesApi";
 import { toast } from "sonner";
 import {
   Tabs,

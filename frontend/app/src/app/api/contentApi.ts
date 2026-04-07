@@ -1,10 +1,11 @@
+import { API_CONFIG } from './apiConfig';
 import type {
   Content,
   ContentVersion,
   ContentActiveVersion,
 } from './models';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string) || '';
+const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT;
 
 const authHeaders = (token?: string) => {
   const t = token ?? localStorage.getItem('authToken');
@@ -12,7 +13,7 @@ const authHeaders = (token?: string) => {
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${path}`;
+  const url = `${API_URL}${path}`;
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) } as Record<string, string>;
   const res = await fetch(url, { ...opts, headers });
   if (res.status === 204) return undefined as unknown as T;
@@ -26,32 +27,32 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 export const contentApi = {
   create: (payload: Partial<Content>, token?: string) =>
-    request<Content>('/content', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+    request<Content>('', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
   get: (contentId: string, token?: string) => request<Content>(`/content/${contentId}`, { method: 'GET', headers: authHeaders(token) }),
 
   list: (limit = 50, offset = 0, token?: string) => request<Content[]>(`/content?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
   listByPack: (packId: string, limit = 50, offset = 0, token?: string) =>
-    request<Content[]>(`/content/by-pack/${packId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+    request<Content[]>(`/by-pack/${packId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
   patch: (contentId: string, patch: Partial<Content>, token?: string) =>
-    request<Content>(`/content/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
+    request<Content>(`/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 
-  delete: (contentId: string, token?: string) => request<void>(`/content/${contentId}`, { method: 'DELETE', headers: authHeaders(token) }),
+  delete: (contentId: string, token?: string) => request<void>(`/${contentId}`, { method: 'DELETE', headers: authHeaders(token) }),
 
   // Versions
   createVersion: (contentId: string, payload: Partial<ContentVersion>, token?: string) =>
-    request<ContentVersion>(`/content/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+    request<ContentVersion>(`/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
   listVersions: (contentId: string, token?: string) => request<ContentVersion[]>(`/content/${contentId}/versions`, { method: 'GET', headers: authHeaders(token) }),
 
   getVersion: (contentId: string, versionNum: number, token?: string) =>
-    request<ContentVersion>(`/content/${contentId}/versions/${versionNum}`, { method: 'GET', headers: authHeaders(token) }),
+    request<ContentVersion>(`/${contentId}/versions/${versionNum}`, { method: 'GET', headers: authHeaders(token) }),
 
   // Active
   upsertActive: (contentId: string, payload: Partial<ContentActiveVersion>, token?: string) =>
-    request<ContentActiveVersion>(`/content/${contentId}/active`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token) }),
+    request<ContentActiveVersion>(`/${contentId}/active`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
-  getActive: (contentId: string, token?: string) => request<ContentVersion>(`/content/${contentId}/active`, { method: 'GET', headers: authHeaders(token) }),
+  getActive: (contentId: string, token?: string) => request<ContentVersion>(`/${contentId}/active`, { method: 'GET', headers: authHeaders(token) }),
 };
