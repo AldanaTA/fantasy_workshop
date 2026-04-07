@@ -1,56 +1,31 @@
-// Dummy Games API
-// In production, these would be real API calls to your backend
+import type { Game } from './models';
 
-import type { Game, Content } from '../types/game';
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || '';
 
-// Simulate API delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const authHeaders = (token?: string) => {
+  const t = token ?? localStorage.getItem('authToken');
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) } as Record<string, string>;
+  const res = await fetch(url, { ...opts, headers });
+  if (res.status === 204) return undefined as unknown as T;
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail = data?.detail || res.statusText;
+    throw new Error(detail);
+  }
+  return data as T;
+}
 
 export const gamesApi = {
-  getAll: async (userId: string): Promise<Game[]> => {
-    await delay(500);
-    
-    const gamesStr = localStorage.getItem(`games_${userId}`);
-    if (!gamesStr) return [];
-    
-    try {
-      return JSON.parse(gamesStr);
-    } catch {
-      return [];
-    }
-  },
+  list: (limit = 50, offset = 0, token?: string) => request<Game[]>(`/games?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
-  create: async (userId: string, game: Game): Promise<Game> => {
-    await delay(500);
-    
-    const games = await gamesApi.getAll(userId);
-    games.push(game);
-    localStorage.setItem(`games_${userId}`, JSON.stringify(games));
-    
-    return game;
-  },
+  create: (payload: Partial<Game>, token?: string) => request<Game>(`/games`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
-  update: async (userId: string, gameId: string, updates: Partial<Game>): Promise<Game> => {
-    await delay(500);
-    
-    const games = await gamesApi.getAll(userId);
-    const index = games.findIndex(g => g.id === gameId);
-    
-    if (index === -1) {
-      throw new Error('Game not found');
-    }
-    
-    games[index] = { ...games[index], ...updates };
-    localStorage.setItem(`games_${userId}`, JSON.stringify(games));
-    
-    return games[index];
-  },
+  patch: (id: string, patch: Partial<Game>, token?: string) => request<Game>(`/games/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 
-  delete: async (userId: string, gameId: string): Promise<void> => {
-    await delay(500);
-    
-    const games = await gamesApi.getAll(userId);
-    const filtered = games.filter(g => g.id !== gameId);
-    localStorage.setItem(`games_${userId}`, JSON.stringify(filtered));
-  },
+  delete: (id: string, token?: string) => request<void>(`/games/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
 };

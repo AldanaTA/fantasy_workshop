@@ -1,95 +1,57 @@
-// Dummy Content API
-// In production, these would be real API calls to your backend
+import type {
+  Content,
+  ContentVersion,
+  ContentActiveVersion,
+} from './models';
 
-import type { Content } from '../types/game';
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || '';
 
-// Simulate API delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const authHeaders = (token?: string) => {
+  const t = token ?? localStorage.getItem('authToken');
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) } as Record<string, string>;
+  const res = await fetch(url, { ...opts, headers });
+  if (res.status === 204) return undefined as unknown as T;
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail = data?.detail || res.statusText;
+    throw new Error(detail);
+  }
+  return data as T;
+}
 
 export const contentApi = {
-  getAll: async (userId: string): Promise<Content[]> => {
-    await delay(500);
-    
-    const contentStr = localStorage.getItem(`content_${userId}`);
-    if (!contentStr) return [];
-    
-    try {
-      return JSON.parse(contentStr);
-    } catch {
-      return [];
-    }
-  },
+  create: (payload: Partial<Content>, token?: string) =>
+    request<Content>('/content', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
-  getByGame: async (userId: string, gameId: string): Promise<Content[]> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    return allContent.filter(c => c.gameId === gameId);
-  },
+  get: (contentId: string, token?: string) => request<Content>(`/content/${contentId}`, { method: 'GET', headers: authHeaders(token) }),
 
-  getById: async (userId: string, contentId: string): Promise<Content | null> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    return allContent.find(c => c.id === contentId) || null;
-  },
+  list: (limit = 50, offset = 0, token?: string) => request<Content[]>(`/content?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
-  create: async (userId: string, content: Content): Promise<Content> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    allContent.push(content);
-    localStorage.setItem(`content_${userId}`, JSON.stringify(allContent));
-    
-    return content;
-  },
+  listByPack: (packId: string, limit = 50, offset = 0, token?: string) =>
+    request<Content[]>(`/content/by-pack/${packId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
-  update: async (userId: string, contentId: string, updates: Partial<Content>): Promise<Content> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    const index = allContent.findIndex(c => c.id === contentId);
-    
-    if (index === -1) {
-      throw new Error('Content not found');
-    }
-    
-    allContent[index] = { ...allContent[index], ...updates };
-    localStorage.setItem(`content_${userId}`, JSON.stringify(allContent));
-    
-    return allContent[index];
-  },
+  patch: (contentId: string, patch: Partial<Content>, token?: string) =>
+    request<Content>(`/content/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 
-  delete: async (userId: string, contentId: string): Promise<void> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    const filtered = allContent.filter(c => c.id !== contentId);
-    localStorage.setItem(`content_${userId}`, JSON.stringify(filtered));
-  },
+  delete: (contentId: string, token?: string) => request<void>(`/content/${contentId}`, { method: 'DELETE', headers: authHeaders(token) }),
 
-  bulkCreate: async (userId: string, contentList: Content[]): Promise<Content[]> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    allContent.push(...contentList);
-    localStorage.setItem(`content_${userId}`, JSON.stringify(allContent));
-    
-    return contentList;
-  },
+  // Versions
+  createVersion: (contentId: string, payload: Partial<ContentVersion>, token?: string) =>
+    request<ContentVersion>(`/content/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
-  bulkDelete: async (userId: string, contentIds: string[]): Promise<void> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    const filtered = allContent.filter(c => !contentIds.includes(c.id));
-    localStorage.setItem(`content_${userId}`, JSON.stringify(filtered));
-  },
+  listVersions: (contentId: string, token?: string) => request<ContentVersion[]>(`/content/${contentId}/versions`, { method: 'GET', headers: authHeaders(token) }),
 
-  getByCategory: async (userId: string, gameId: string, categoryId: string): Promise<Content[]> => {
-    await delay(500);
-    
-    const allContent = await contentApi.getAll(userId);
-    return allContent.filter(c => c.gameId === gameId && c.category === categoryId);
-  },
+  getVersion: (contentId: string, versionNum: number, token?: string) =>
+    request<ContentVersion>(`/content/${contentId}/versions/${versionNum}`, { method: 'GET', headers: authHeaders(token) }),
+
+  // Active
+  upsertActive: (contentId: string, payload: Partial<ContentActiveVersion>, token?: string) =>
+    request<ContentActiveVersion>(`/content/${contentId}/active`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token) }),
+
+  getActive: (contentId: string, token?: string) => request<ContentVersion>(`/content/${contentId}/active`, { method: 'GET', headers: authHeaders(token) }),
 };
