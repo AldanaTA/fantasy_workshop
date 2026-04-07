@@ -53,19 +53,6 @@ export interface SpendResourceEntry {
   changeAmount?: string; // Optional: e.g., "+1" or "-1" - amount to change the field by
 }
 
-// Content is the core building block
-export interface Content {
-  id: string;
-  gameId: string;
-  campaignId?: string; // If set, this content is campaign-specific
-  baseContentId?: string; // If set, this content was created using another content as a reference
-  name: string;
-  description: string; // Always markdown formatted
-  category: string; // Category ID
-  fields: ContentField[];
-  createdAt: string;
-}
-
 // Game Mechanics are content themselves
 export interface GameMechanic {
   id: string;
@@ -107,61 +94,6 @@ export interface CharacterSheetTab {
   collapsed?: boolean; // Whether this tab/section is collapsed
 }
 
-export interface Character {
-  id: string;
-  gameId: string;
-  contentInstances: CharacterContentInstance[]; // All character data comes from content
-  customLayout?: CharacterSheetTab[]; // Custom tab layout (if not set, auto-generate from categories)
-  categoryFieldValues?: Record<string, Record<string, number | string | string[]>>; // Field values for categories themselves (categoryId -> fieldId -> value)
-}
-
-export interface NPC {
-  id: string;
-  name: string;
-  contentInstances: CharacterContentInstance[]; // NPCs also use content instances
-}
-
-export interface Encounter {
-  id: string;
-  name: string;
-  description: string;
-  npcs: string[]; // NPC ids
-  notes: string;
-}
-
-export interface Game {
-  id: string;
-  name: string;
-  description: string;
-  creator: string;
-  createdAt: string;
-  diceTypes: DiceType[];
-  contentCategories: ContentCategoryDefinition[]; // Custom content categories
-}
-
-export interface Session {
-  id: string;
-  gameId: string;
-  campaignId?: string; // Optional: if this session belongs to a campaign
-  name: string;
-  gmNotes: string;
-  npcs: NPC[];
-  encounters: Encounter[];
-  activeEncounter?: string;
-  inviteCode?: string; // Unique code for players to join
-  sharedContentIds: string[]; // Content IDs that players can access
-}
-
-export interface Campaign {
-  id: string;
-  gameId: string;
-  name: string;
-  description: string;
-  inviteCode: string; // Unique code for players to join
-  playerIds: string[]; // Player character IDs who have joined
-  gmNotes: string;
-  createdAt: string;
-}
 
 export interface DiceRoll {
   formula: string;
