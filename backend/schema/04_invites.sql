@@ -5,7 +5,7 @@ CREATE TYPE invite_target_type AS ENUM (
 
 CREATE TYPE game_role AS ENUM (
   'editor',
-  'viewer'
+  'purchaser',
 );
 
 CREATE TYPE invite_status AS ENUM (

@@ -7,10 +7,6 @@ class IdOut(BaseModel):
     id: UUID
 
 # Users
-class User(BaseModel):
-    id: UUID
-    display_name: str
-    email: str
 
 class UserCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=200)
@@ -268,9 +264,7 @@ class InviteCreate(BaseModel):
     email: EmailStr
     target_type: str  # "campaign" or "game"
     target_id: UUID
-    sender_id: UUID
     role: str
 
 class InviteAccept(BaseModel):
-    receiver_id: UUID
     token: str

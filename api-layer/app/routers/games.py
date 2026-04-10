@@ -26,6 +26,52 @@ async def create_game(
     await db.refresh(obj)
     return obj
 
+# --- Public game listing ---
+@router.get("/public", response_model=list[GameOut])
+async def list_public_games(
+    limit: int = 50,
+    offset: int = 0,
+    redis: Redis = Depends(get_redis),
+    db: AsyncSession = Depends(get_db)
+):
+    await rate_limit_or_429(redis, f"rl:games:list_public", rate_per_sec=5/60, burst=10)
+    limit = min(max(limit, 1), 200)
+    q = select(Game).where(Game.visibility == "public").limit(limit).offset(offset)
+    res = await db.execute(q)
+    return list(res.scalars().all())
+
+# -- Owned game listing ---
+@router.get("/owned", response_model=list[GameOut])
+async def list_owned_games(
+    limit: int = 50,
+    offset: int = 0,
+    user = Depends(require_user),
+    redis: Redis = Depends(get_redis),
+    db: AsyncSession = Depends(get_db)
+):
+    await rate_limit_or_429(redis, f"rl:games:list_owned:{user.id}", rate_per_sec=5/60, burst=10)
+    limit = min(max(limit, 1), 200)
+    q = select(Game).where(Game.owner_user_id == user.id).limit(limit).offset(offset)
+    res = await db.execute(q)
+    return list(res.scalars().all())
+
+# -- purchased game listing ---
+@router.get("/purchased", response_model=list[GameOut])
+async def list_purchased_games( 
+    limit: int = 50,
+    offset: int = 0,
+    user = Depends(require_user),
+    redis: Redis = Depends(get_redis),
+    db: AsyncSession = Depends(get_db)
+):
+    await rate_limit_or_429(redis, f"rl:games:list_purchased:{user.id}", rate_per_sec=5/60, burst=10)
+    limit = min(max(limit, 1), 200)
+    q = select(Game).where(
+        exists().where(UserGameRole.user_id == user.id, UserGameRole.game_id == Game.id, UserGameRole.role == "purchaser")
+    ).limit(limit).offset(offset)
+    res = await db.execute(q)
+    return list(res.scalars().all())
+
 # ---- GET ONE ----
 @router.get("/{id}", response_model=GameOut)
 async def get_game(
@@ -45,25 +91,6 @@ async def get_game(
         raise HTTPException(403, "Access denied")
     return game
 
-# ---- LIST ----
-@router.get("", response_model=list[GameOut])
-async def list_games(
-    limit: int = 50,
-    offset: int = 0,
-    user = Depends(require_user),
-    redis: Redis = Depends(get_redis),
-    db: AsyncSession = Depends(get_db)
-):
-    await rate_limit_or_429(redis, f"rl:games:list:{user.id}", rate_per_sec=5/60, burst=10)
-    limit = min(max(limit, 1), 200)
-    q = select(Game).where(
-        (Game.owner_user_id == user.id) | 
-        (Game.visibility == "public") |
-        exists().where(UserGameRole.user_id == user.id, UserGameRole.game_id == Game.id)
-    ).limit(limit).offset(offset)
-    res = await db.execute(q)
-    return list(res.scalars().all())
-
 # ---- PATCH ----
 @router.patch("/{id}", response_model=GameOut)
 async def patch_game(
@@ -75,7 +102,7 @@ async def patch_game(
     game = await db.get(Game, id)
     if not game:
         raise HTTPException(404, "Game not found")
-    if game.owner_user_id != user.id:
+    if game.owner_user_id != user.id :
         raise HTTPException(403, "Only owner can modify")
     for protected in ("id", "created_at", "updated_at", "owner_user_id"):
         updates.pop(protected, None)

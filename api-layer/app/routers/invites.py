@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schema.schemas import InviteCreate, InviteAccept, User
+from app.schema.schemas import InviteCreate, InviteAccept
+from app.helpers import require_user
 from app.helpers import hash_refresh_token as hash_token
 from app.schema.db import get_db, get_redis
 from app.helpers_rate_limit import rate_limit_or_429 as RateLimiter
@@ -17,10 +18,11 @@ app = FastAPI()
 @app.post("/invites")
 async def create_invite(
     data: InviteCreate,
+    user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
-    await RateLimiter(redis, f"invite:creator:{data.sender_id}:create:{data.target_id}",rate_per_sec=5/60, burst=10)
+    await RateLimiter(redis, f"invite:creator:{user.id}:create:{data.target_id}",rate_per_sec=5/60, burst=10)
 
     raw_token = secrets.token_urlsafe(32)
     token_hash = hash_token(raw_token)
@@ -40,7 +42,7 @@ async def create_invite(
         VALUES (:inviter, :email, :type, :target, :role, :token, :expires)
         """,
         {
-            "inviter": data.sender_id,
+            "inviter": user.id,
             "email": data.email,
             "type": data.target_type,
             "target": data.target_id,
@@ -60,9 +62,10 @@ async def create_invite(
 async def accept_invite(
     data: InviteAccept,
     db: AsyncSession = Depends(get_db),
+    user = Depends(require_user),
     redis: Redis = Depends(get_redis),
 ):
-    await RateLimiter(redis, f"invite:accept:{data.recipient_id}", rate_per_sec=5/60, burst=10)
+    await RateLimiter(redis, f"invite:accept:{user.id}", rate_per_sec=5/60, burst=10)
 
     token_hash = hash_token(data.token)
 
@@ -122,17 +125,17 @@ async def accept_invite(
     return {"status": "accepted"}
 
 @app.get("/invites")
-async def list_invites(user=User,
+async def list_invites(user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         """
         SELECT id, target_type, target_id, role, status, expires_at
         FROM invitations
-        WHERE invitee_email = :email
+        WHERE invitee_user_id = :user_id
         AND status = 'pending'
         """,
-        {"email": user.email},
+        {"user_id": user.id},
     )
 
     return [dict(row) for row in result.fetchall()]
