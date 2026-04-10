@@ -1,11 +1,29 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import ForeignKey, Text, Integer, DateTime
+from sqlalchemy import ForeignKey, Text, Integer, DateTime, Enum
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY, INET
 from sqlalchemy.sql import func
 
 from datetime import datetime
 from typing import Optional, List, Dict
 import uuid
+from enum import Enum as PyEnum
+
+
+class InviteTargetType(PyEnum):
+    CAMPAIGN = "campaign"
+    GAME = "game"
+
+
+class InviteStatus(PyEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+
+
+class GameRole(PyEnum):
+    EDITOR = "editor"
+    VIEWER = "viewer"
 
 
 class Base(DeclarativeBase):
@@ -92,6 +110,18 @@ class Game(Base):
     )
 
     game_name: Mapped[str] = mapped_column(Text, nullable=False)
+
+    visibility: Mapped[str] = mapped_column(Text, nullable=False, default="private")
+
+
+class UserGameRole(Base):
+    __tablename__ = "user_game_roles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+    game_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), primary_key=True)
+
+    role: Mapped[GameRole] = mapped_column(Enum(GameRole), nullable=False)
 
 
 class ContentPack(Base):
@@ -430,5 +460,36 @@ class CampaignCharacterLatestSnapshot(Base):
     )
 
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+class Invitations(Base):
+    __tablename__ = "invitations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    inviter_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    invitee_email: Mapped[str] = mapped_column(Text, nullable=False)
+
+    invitee_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+
+    target_type: Mapped[InviteTargetType] = mapped_column(Enum(InviteTargetType), nullable=False)
+
+    target_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+
+    token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+
+    status: Mapped[InviteStatus] = mapped_column(Enum(InviteStatus), nullable=False, default=InviteStatus.PENDING)
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

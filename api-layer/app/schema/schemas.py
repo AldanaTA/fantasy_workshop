@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -32,12 +32,13 @@ class AuthIdentityOut(IdOut):
 
 # Games
 class GameCreate(BaseModel):
-    owner_user_id: UUID
     game_name: str = Field(min_length=1, max_length=200)
+    visibility: str = "private"
 
 class GameOut(IdOut):
     owner_user_id: UUID
     game_name: str
+    visibility: str
 
 # Content pack
 class ContentPackCreate(BaseModel):
@@ -256,3 +257,15 @@ class LoginIn(BaseModel):
 
 class RefreshIn(BaseModel):
     refresh_token: str
+
+#--- INVITES ----------
+class InviteCreate(BaseModel):
+    email: EmailStr
+    target_type: str  # "campaign" or "game"
+    target_id: UUID
+    sender_id: UUID
+    role: str
+
+class InviteAccept(BaseModel):
+    receiver_id: UUID
+    token: str
