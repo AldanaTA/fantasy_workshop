@@ -6,8 +6,8 @@ import { Button } from './ui/button';
 import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Dices } from 'lucide-react';
-import { userApi } from '../api/userApi';
-import type { User } from '../api/userApi';
+import { authApi } from '../api/authApi';
+import type { User } from '../api/models';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -33,7 +33,7 @@ export function Login({ onLogin }: LoginProps) {
     setIsLoading(true);
 
     try {
-      const user = await userApi.login({
+      const user = await authApi.login({
         email: loginEmail,
         password: loginPassword,
       });
