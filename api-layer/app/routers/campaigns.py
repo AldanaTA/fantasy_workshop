@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from uuid import UUID
 from redis.asyncio import Redis
 
@@ -9,7 +9,7 @@ from app.conf import settings
 from app.helpers import new_id, require_user
 from app.helpers_cache import cache_get_json, cache_set_json
 from app.helpers_cache_index import cache_index_add, cache_index_invalidate
-from app.routers.deps import require_campaign_role, CAN_WRITE_EVENTS, CAN_WRITE_SNAPSHOTS, CAN_READ_CAMPAIGN
+from app.routers.deps import require_campaign_role, CAN_WRITE_EVENTS, CAN_WRITE_SNAPSHOTS, CAN_READ_CAMPAIGN, ROLE_OWNER
 
 from app.schema.models import (
     Campaign, UserCampaignRole, Character, CampaignCharacter,
@@ -28,6 +28,21 @@ from app.schema.schemas import (
 )
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+
+async def require_gm_or_co_gm(campaign_id: UUID, auth: dict = Depends(require_user), db: AsyncSession = Depends(get_db)):
+    camp = await db.get(Campaign, campaign_id)
+    if not camp:
+        raise HTTPException(404, "campaign not found")
+    user_id = UUID(auth["uid"])
+    if camp.owner_user_id == user_id:
+        return
+    q = select(UserCampaignRole.role).where(
+        UserCampaignRole.campaign_id == campaign_id,
+        UserCampaignRole.user_id == user_id,
+    )
+    role = (await db.execute(q)).scalar_one_or_none()
+    if role != "Co-GM":
+        raise HTTPException(403, "you are not an owner or co-gm")
 
 # cache keys/indexes for events
 def idx_events(campaign_id: UUID) -> str:
@@ -52,13 +67,31 @@ async def get_campaign(campaign_id: UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "campaign not found")
     return row
 
-@router.get("", response_model=list[CampaignOut], dependencies=[Depends(require_user)])
-async def list_campaigns(limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
-    limit = min(max(limit, 1), 200)
-    res = await db.execute(select(Campaign).limit(limit).offset(offset))
+# -- game master campaings --
+@router.get("/gm", response_model=list[CampaignOut], dependencies=[Depends(require_user)])
+async def list_gm_campaigns(db: AsyncSession = Depends(get_db), user_id: UUID = Depends(require_user)):
+    q = select(Campaign).where(
+        or_(
+            Campaign.owner_user_id == user_id,
+            Campaign.id.in_(
+                select(UserCampaignRole.campaign_id).where(
+                    UserCampaignRole.user_id == user_id,
+                    UserCampaignRole.role == "Co-GM"
+                )
+            )
+        )
+    )
+    res = await db.execute(q)
     return list(res.scalars().all())
 
-@router.patch("/{campaign_id}", response_model=CampaignOut, dependencies=[Depends(require_user)])
+# -- get player campaigns --
+@router.get("/player", response_model=list[CampaignOut], dependencies=[Depends(require_user)])
+async def list_player_campaigns(db: AsyncSession = Depends(get_db), user_id: UUID = Depends(require_user)):
+    q = select(Campaign).join(UserCampaignRole).where(UserCampaignRole.user_id == user_id, UserCampaignRole.role == "player")
+    res = await db.execute(q)
+    return list(res.scalars().all())
+
+@router.patch("/{campaign_id}", response_model=CampaignOut, dependencies=[Depends(require_user), Depends(require_gm_or_co_gm)])
 async def patch_campaign(campaign_id: UUID, patch: dict, db: AsyncSession = Depends(get_db)):
     row = await db.get(Campaign, campaign_id)
     if not row:

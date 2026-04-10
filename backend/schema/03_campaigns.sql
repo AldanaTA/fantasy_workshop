@@ -38,7 +38,6 @@ ALTER TABLE content_packs
 CREATE INDEX IF NOT EXISTS content_packs_campaign_id_idx ON content_packs(campaign_id);
 
 CREATE TYPE campaign_role as enum (
-  'GM',
   'Co-GM',
   'player',
 );

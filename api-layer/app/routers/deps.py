@@ -27,6 +27,9 @@ async def get_campaign_role(
         raise HTTPException(404, "campaign not found")
 
     user_id = UUID(auth["uid"])
+    if camp.owner_user_id == user_id:
+        return ROLE_OWNER
+
     q = select(UserCampaignRole.role).where(
         UserCampaignRole.campaign_id == campaign_id,
         UserCampaignRole.user_id == user_id,
