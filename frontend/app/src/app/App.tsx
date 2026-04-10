@@ -2,21 +2,38 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './components/Login';
 import { MainApp } from './components/MainApp';
-import { usersApi } from './api/usersApi';
-import type { User } from './api/models';
+import { TokenPair } from './api/models';
+import { authApi } from './api/authApi';
 
 function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [tokens, setTokens] = useState<TokenPair | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing user session on mount
+  const saveTokens = (newTokens: TokenPair) => {
+    localStorage.setItem('currentTokens', JSON.stringify(newTokens));
+    setTokens(newTokens);
+  };
+
+  const clearTokens = () => {
+    localStorage.removeItem('currentTokens');
+    setTokens(null);
+  };
+
   useEffect(() => {
     const checkSession = async () => {
+      const stored = localStorage.getItem('currentTokens');
+      if (!stored) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const currentUser = await usersApi.get(localStorage.getItem('userId') || '');
-        setUser(currentUser);
+        const parsed = JSON.parse(stored) as TokenPair;
+        const refreshed = await authApi.refresh({ refresh_token: parsed.refresh_token });
+        saveTokens(refreshed);
       } catch (error) {
-        console.error('Failed to get current user:', error);
+        console.error('Failed to refresh session:', error);
+        clearTokens();
       } finally {
         setIsLoading(false);
       }
@@ -25,12 +42,12 @@ function App() {
     checkSession();
   }, []);
 
-  const handleLogin = (loggedInUser: User) => {
-    setUser(loggedInUser);
+  const handleLogin = (newTokens: TokenPair) => {
+    saveTokens(newTokens);
   };
 
   const handleLogout = () => {
-    setUser(null);
+    clearTokens();
   };
 
   if (isLoading) {
@@ -50,7 +67,7 @@ function App() {
         <Route
           path="/"
           element={
-            user ? (
+            tokens ? (
               <Navigate to="/app" replace />
             ) : (
               <Login onLogin={handleLogin} />
@@ -60,8 +77,8 @@ function App() {
         <Route
           path="/app"
           element={
-            user ? (
-              <MainApp user={user} onLogout={handleLogout} />
+            tokens ? (
+              <MainApp tokens={tokens} onLogout={handleLogout} />
             ) : (
               <Navigate to="/" replace />
             )

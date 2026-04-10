@@ -1,6 +1,6 @@
 import { API_CONFIG } from "./apiConfig";
+import type { TokenPair } from "./models";
 
-type TokenPair = { access_token: string; refresh_token: string };
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_auth
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -20,5 +20,6 @@ export const authApi = {
 		request<TokenPair>(`/login`, { method: 'POST', body: JSON.stringify(payload) }),
 
 	refresh: (payload: { refresh_token: string }) => request<TokenPair>(`/refresh`, { method: 'POST', body: JSON.stringify(payload) }),
+	logout: (payload: { refresh_token: string }) => request<{ message: string }>(`/logout`, { method: 'POST', body: JSON.stringify(payload) }),
 };
 

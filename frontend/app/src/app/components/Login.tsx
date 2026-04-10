@@ -7,10 +7,10 @@ import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Dices } from 'lucide-react';
 import { authApi } from '../api/authApi';
-import type { User } from '../api/models';
+import type { TokenPair } from '../api/models';
 
 interface LoginProps {
-  onLogin: (user: User) => void;
+  onLogin: (token:TokenPair) => void;
 }
 
 export function Login({ onLogin }: LoginProps) {
@@ -33,15 +33,15 @@ export function Login({ onLogin }: LoginProps) {
     setIsLoading(true);
 
     try {
-      const user = await authApi.login({
+      const tokens = await authApi.login({
         email: loginEmail,
         password: loginPassword,
       });
 
-      // Store user in localStorage for persistence
-      localStorage.setItem('currentUser', JSON.stringify(user));
+      // Store tokens in localStorage for persistence
+      localStorage.setItem('currentTokens', JSON.stringify(tokens));
       
-      onLogin(user);
+      onLogin(tokens);
       navigate('/app');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -56,16 +56,16 @@ export function Login({ onLogin }: LoginProps) {
     setIsLoading(true);
 
     try {
-      const user = await userApi.register({
-        name: registerName,
+      const tokens = await authApi.login({
         email: registerEmail,
         password: registerPassword,
+        display_name_if_new: registerName,
       });
 
-      // Store user in localStorage for persistence
-      localStorage.setItem('currentUser', JSON.stringify(user));
-      
-      onLogin(user);
+      // Store tokens in localStorage for persistence
+      localStorage.setItem('currentTokens', JSON.stringify(tokens));
+
+      onLogin(tokens);
       navigate('/app');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
