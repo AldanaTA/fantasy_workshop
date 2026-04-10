@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from uuid import UUID
 import secrets
@@ -13,9 +13,9 @@ from app.helpers import hash_refresh_token as hash_token
 from app.schema.db import get_db, get_redis
 from app.helpers_rate_limit import rate_limit_or_429 as RateLimiter
 
-app = FastAPI()
+router = APIRouter(prefix="/invites", tags=["invites"])
 
-@app.post("/invites")
+@router.post("/invites")
 async def create_invite(
     data: InviteCreate,
     user = Depends(require_user),
@@ -58,7 +58,7 @@ async def create_invite(
         "invite_link": f"https://fantasy_workshop.com/invite/{raw_token}"
     }
 
-@app.post("/invites/accept")
+@router.post("/invites/accept")
 async def accept_invite(
     data: InviteAccept,
     db: AsyncSession = Depends(get_db),
@@ -124,7 +124,7 @@ async def accept_invite(
 
     return {"status": "accepted"}
 
-@app.get("/invites")
+@router.get("/invites")
 async def list_invites(user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):

@@ -7,7 +7,7 @@ from app.routers.games import router as games_router
 from app.routers.content_packs import router as packs_router
 from app.routers.content_categories import router as categories_router
 from app.routers.content import router as content_router
-
+from app.routers.invites import router as invites_router
 from app.routers.campaigns import router as campaigns_router
 from app.routers.chat_messages import router as chat_http_router
 
@@ -25,7 +25,7 @@ app.include_router(content_router)
 
 app.include_router(campaigns_router)
 app.include_router(chat_http_router)
-
+app.include_router(invites_router)
 
 @app.get("/health")
 async def health():

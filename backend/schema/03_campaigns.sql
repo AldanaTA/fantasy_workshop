@@ -39,7 +39,7 @@ CREATE INDEX IF NOT EXISTS content_packs_campaign_id_idx ON content_packs(campai
 
 CREATE TYPE campaign_role as enum (
   'Co-GM',
-  'player',
+  'player'
 );
 -- USER CAMPAIGN ROLES
 CREATE TABLE IF NOT EXISTS user_campaign_roles (
