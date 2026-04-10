@@ -7,6 +7,11 @@ class IdOut(BaseModel):
     id: UUID
 
 # Users
+class User(BaseModel):
+    id: UUID
+    display_name: str
+    email: str
+
 class UserCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=200)
     email: str = Field(min_length=3, max_length=320)

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schema.schemas import InviteCreate, InviteAccept
+from app.schema.schemas import InviteCreate, InviteAccept, User
 from app.helpers import hash_refresh_token as hash_token
 from app.schema.db import get_db, get_redis
 from app.helpers_rate_limit import rate_limit_or_429 as RateLimiter
@@ -114,7 +114,7 @@ async def accept_invite(
         SET status = 'accepted', invitee_user_id = :user
         WHERE id = :id
         """,
-        {"user": user.id, "id": invite.id},
+        {"user": data.receiver_id, "id": invite.id},
     )
 
     await db.commit()
@@ -122,9 +122,8 @@ async def accept_invite(
     return {"status": "accepted"}
 
 @app.get("/invites")
-async def list_invites(
+async def list_invites(user=User,
     db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
 ):
     result = await db.execute(
         """
