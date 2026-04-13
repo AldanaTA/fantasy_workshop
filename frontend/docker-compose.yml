@@ -3,9 +3,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - .:/app
+      - /app/node_modules
     env_file:
         - .env
     container_name: frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT}:80"
+    commands:
+      - 'npm run dev'

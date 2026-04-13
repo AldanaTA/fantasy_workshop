@@ -246,7 +246,12 @@ class CampaignCharacterLatestSnapshotOut(IdOut):
     updated_at: datetime
 
 # Auth
+class AuthUser(BaseModel):
+    email: str
+    display_name: str
+
 class TokenPairOut(BaseModel):
+    user:AuthUser
     access_token: str
     refresh_token: str
     token_type: str = "bearer"

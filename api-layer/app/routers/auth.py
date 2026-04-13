@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 
 from app.schema.db import get_db, get_redis
 from app.schema.models import User, RefreshToken
-from app.schema.schemas import LoginIn, RefreshIn, TokenPairOut
+from app.schema.schemas import AuthUser, LoginIn, RefreshIn, TokenPairOut
 from app.helpers import new_id, create_access_token, make_refresh_token, hash_refresh_token, hash_password, verify_password
 from app.conf import settings
 from app.helpers_rate_limit import rate_limit_or_429
@@ -69,6 +69,7 @@ async def login(
     # TOKEN CREATION
     # -------------------------
 
+    AuthUser(email=user.email, display_name=user.display_name)  # For type checking
     access = create_access_token(sub="user", user_id=str(user.id))
 
     refresh_raw = make_refresh_token()
@@ -123,3 +124,17 @@ async def refresh(body: RefreshIn, request: Request, db: AsyncSession = Depends(
 
     access = create_access_token(sub="user", user_id=str(rt.user_id))
     return TokenPairOut(access_token=access, refresh_token=new_refresh_raw)
+
+@router.post("/logout")
+async def logout(body: RefreshIn, db: AsyncSession = Depends(get_db)):
+    token_hash = hash_refresh_token(body.refresh_token)
+
+    q = select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    rt = (await db.execute(q)).scalars().first()
+    if not rt:
+        raise HTTPException(401, "Invalid refresh token")
+
+    rt.revoked_at = utcnow()
+    await db.commit()
+
+    return {"message": "Logged out successfully"}

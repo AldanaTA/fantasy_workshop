@@ -9,30 +9,14 @@ export interface User {
 	display_name: string;
 	email: string;
 	password_hash?: string | null;
-	created_at: DateTime;
-	updated_at: DateTime;
 }
 
-export interface AuthIdentity {
-	id: UUID;
-	user_id: UUID;
-	provider: string;
-	provider_subject: string;
-	created_at: DateTime;
-	updated_at: DateTime;
+export interface AuthUser {
+	email: string;
+	display_name: string;
 }
 
-export interface RefreshToken {
-	id: UUID;
-	user_id: UUID;
-	token_hash: string;
-	expires_at: DateTime;
-	revoked_at?: DateTime | null;
-	user_agent?: string | null;
-	ip_address?: string | null;
-	replaced_by_id?: UUID | null;
-	created_at: DateTime;
-}
+export type TokenPair = { user: AuthUser; access_token: string; refresh_token: string };
 
 // ---------- CONTENT ----------
 
