@@ -86,7 +86,7 @@ async def login(
     db.add(rt)
     await db.commit()
 
-    return TokenPairOut(access_token=access, refresh_token=refresh_raw)
+    return TokenPairOut(user_id=user.id, access_token=access, refresh_token=refresh_raw)
 
 @router.post("/refresh", response_model=TokenPairOut)
 async def refresh(body: RefreshIn, request: Request, db: AsyncSession = Depends(get_db), r: Redis = Depends(get_redis)):
@@ -115,6 +115,7 @@ async def refresh(body: RefreshIn, request: Request, db: AsyncSession = Depends(
         ip_address=ip if ip != "unknown" else None,
     )
     db.add(new_rt)
+    await db.flush()  # Ensure new token is inserted before referencing it
 
     rt.revoked_at = now
     rt.replaced_by_id = new_rt.id
@@ -122,7 +123,7 @@ async def refresh(body: RefreshIn, request: Request, db: AsyncSession = Depends(
     await db.commit()
 
     access = create_access_token(sub="user", user_id=str(rt.user_id))
-    return TokenPairOut(access_token=access, refresh_token=new_refresh_raw)
+    return TokenPairOut(user_id=rt.user_id, access_token=access, refresh_token=new_refresh_raw)
 
 @router.post("/logout")
 async def logout(body: RefreshIn, db: AsyncSession = Depends(get_db)):

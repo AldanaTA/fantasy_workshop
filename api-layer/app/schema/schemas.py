@@ -251,6 +251,7 @@ class AuthUser(BaseModel):
     display_name: str
 
 class TokenPairOut(BaseModel):
+    user_id: UUID
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
