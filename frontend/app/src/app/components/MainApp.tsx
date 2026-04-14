@@ -84,7 +84,7 @@ export function MainApp({ tokens, onLogout }: MainAppProps) {
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold">TTRPG Companion</h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Welcome, {tokens.user.display_name}! You are logged in ! <span className="font-medium">{currentRole.toUpperCase()}</span>.
+                Welcome, {localStorage.getItem('display_name')}! You are logged in ! <span className="font-medium">{currentRole.toUpperCase()}</span>.
               </p>
             </div>
             <div className="flex gap-2 w-full sm:w-auto items-center">

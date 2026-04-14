@@ -5,18 +5,13 @@ export type JSONDict = Record<string, any>;
 // ---------- SECURITY ----------
 
 export interface User {
-	id: UUID;
-	display_name: string;
-	email: string;
-	password_hash?: string | null;
+	display_name: string
+    email: string
+    created_at: DateTime
+    updated_at: DateTime
 }
 
-export interface AuthUser {
-	email: string;
-	display_name: string;
-}
-
-export type TokenPair = { user: AuthUser; access_token: string; refresh_token: string };
+export type TokenPair = { user_id: UUID; access_token: string; refresh_token: string };
 
 // ---------- CONTENT ----------
 
