@@ -4,32 +4,33 @@ import { Login } from './components/Login';
 import { MainApp } from './components/MainApp';
 import { TokenPair } from './api/models';
 import { authApi } from './api/authApi';
+import { setCurrent,clearCurrent, get_refresh_token } from './api/authStorage';
+import { Save } from 'lucide-react';
 
 function App() {
   const [tokens, setTokens] = useState<TokenPair | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const saveTokens = (newTokens: TokenPair) => {
-    localStorage.setItem('currentTokens', JSON.stringify(newTokens));
+    setCurrent(newTokens);
     setTokens(newTokens);
   };
 
   const clearTokens = () => {
-    localStorage.removeItem('currentTokens');
+    clearCurrent();
     setTokens(null);
   };
 
   useEffect(() => {
     const checkSession = async () => {
-      const stored = localStorage.getItem('currentTokens');
-      if (!stored) {
+      const rt = get_refresh_token();
+      if (!rt) {
         setIsLoading(false);
         return;
       }
 
       try {
-        const parsed = JSON.parse(stored) as TokenPair;
-        const refreshed = await authApi.refresh({ refresh_token: parsed.refresh_token });
+        const refreshed = await authApi.refresh({ refresh_token: rt });
         saveTokens(refreshed);
       } catch (error) {
         console.error('Failed to refresh session:', error);

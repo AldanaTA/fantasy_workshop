@@ -9,6 +9,7 @@ import { Dices } from 'lucide-react';
 import { authApi } from '../api/authApi';
 import type { TokenPair } from '../api/models';
 import { usersApi } from '../api/usersApi';
+import { setCurrent, set_display_name, set_email } from '../api/authStorage';
 
 interface LoginProps {
   onLogin: (token:TokenPair) => void;
@@ -40,12 +41,12 @@ export function Login({ onLogin }: LoginProps) {
       });
 
       // Store tokens in localStorage for persistence
-      localStorage.setItem('currentTokens', JSON.stringify(tokens));
+      setCurrent(tokens);
 
       // Getting displayname and email for the user and storing them in localStorage as well, to avoid having to fetch them on every page load. They will be used in the header to display the user's name and email.
       const user = await usersApi.get(tokens.user_id,tokens.access_token)
-      localStorage.setItem('display_name', user.display_name);
-      localStorage.setItem('email', user.email);
+      set_display_name(user.display_name);
+      set_email(user.email);
 
       onLogin(tokens);
       navigate('/app');
@@ -69,12 +70,12 @@ export function Login({ onLogin }: LoginProps) {
       });
 
       // Store tokens in localStorage for persistence
-      localStorage.setItem('currentTokens', JSON.stringify(tokens));
+      setCurrent(tokens);
 
-        // Getting displayname and email for the user and storing them in localStorage as well, to avoid having to fetch them on every page load. They will be used in the header to display the user's name and email.
+       // Getting displayname and email for the user and storing them in localStorage as well, to avoid having to fetch them on every page load. They will be used in the header to display the user's name and email.
        const user = await usersApi.get(tokens.user_id,tokens.access_token)
-      localStorage.setItem('display_name', user.display_name);
-      localStorage.setItem('email', user.email);
+      set_display_name(user.display_name);
+      set_email(user.email);
 
       onLogin(tokens);
       navigate('/app');

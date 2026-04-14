@@ -1,10 +1,11 @@
 import { API_CONFIG } from './apiConfig';
 import type { ContentPack } from './models';
+import { getAccessToken } from './authStorage';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT_PACKS;
 
 const authHeaders = (token?: string) => {
-  const t = token ?? localStorage.getItem('authToken');
+  const t = token ?? getAccessToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
 
