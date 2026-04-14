@@ -16,7 +16,7 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 export const authApi = {
-	login: (payload: { email: string; password?: string; display_name_if_new?: string }) =>
+	login: (payload: { email: string; display_name_if_new?: string; password?: string }) =>
 		request<TokenPair>(`/login`, { method: 'POST', body: JSON.stringify(payload) }),
 
 	refresh: (payload: { refresh_token: string }) => request<TokenPair>(`/refresh`, { method: 'POST', body: JSON.stringify(payload) }),

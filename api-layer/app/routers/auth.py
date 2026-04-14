@@ -69,7 +69,6 @@ async def login(
     # TOKEN CREATION
     # -------------------------
 
-    AuthUser(email=user.email, display_name=user.display_name)  # For type checking
     access = create_access_token(sub="user", user_id=str(user.id))
 
     refresh_raw = make_refresh_token()
