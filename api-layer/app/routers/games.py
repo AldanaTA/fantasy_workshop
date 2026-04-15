@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists
+from sqlalchemy import select, exists, or_
 from uuid import UUID
 from redis.asyncio import Redis
 
 from app.helpers import require_user, new_id
 from app.schema.db import get_db, get_redis
-from app.schema.models import Game, UserGameRole
+from app.schema.models import ContentCategory, Game, UserGameRole, ContentPack
 from app.schema.schemas import GameCreate, GameOut
 from app.helpers_rate_limit import rate_limit_or_429
 
@@ -24,6 +24,25 @@ async def create_game(
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
+    pack = ContentPack(
+        id=new_id(),
+        game_id=obj.id,
+        owner_id=user.id,
+        pack_name="Main Pack",
+        visibility="private",
+        status="draft"
+    )
+    db.add(pack)
+    await db.commit()
+    await db.refresh(pack)
+    category = ContentCategory(
+        id=new_id(),
+        pack_id=pack.id,
+        name="Uncategorized",
+        sort_key=0
+    )
+    db.add(category)
+    await db.commit()
     return obj
 
 # --- Public game listing ---
@@ -55,24 +74,32 @@ async def list_owned_games(
     res = await db.execute(q)
     return list(res.scalars().all())
 
-# -- purchased game listing ---
-@router.get("/purchased", response_model=list[GameOut])
-async def list_purchased_games( 
+# -- editable / owned game listing ---
+@router.get("/editable", response_model=list[GameOut])
+async def list_editable_games(
     limit: int = 50,
     offset: int = 0,
     user = Depends(require_user),
     redis: Redis = Depends(get_redis),
     db: AsyncSession = Depends(get_db)
 ):
-    await rate_limit_or_429(redis, f"rl:games:list_purchased:{user.id}", rate_per_sec=5/60, burst=10)
+    user_id = UUID(user["uid"]) if isinstance(user, dict) else user.id
+    await rate_limit_or_429(redis, f"rl:games:list_editable:{user_id}", rate_per_sec=5/60, burst=10)
     limit = min(max(limit, 1), 200)
     q = select(Game).where(
-        exists().where(UserGameRole.user_id == user.id, UserGameRole.game_id == Game.id, UserGameRole.role == "purchaser")
+        or_(
+            Game.owner_user_id == user_id,
+            exists().where(
+                UserGameRole.user_id == user_id,
+                UserGameRole.game_id == Game.id,
+                UserGameRole.role == "editor",
+            ),
+        )
     ).limit(limit).offset(offset)
     res = await db.execute(q)
     return list(res.scalars().all())
 
-# ---- GET ONE ----
+# -- purchased game listing ---
 @router.get("/{id}", response_model=GameOut)
 async def get_game(
     id: UUID,

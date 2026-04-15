@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS games (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   game_name     TEXT NOT NULL,
+  game_summary  TEXT,
   visibility    game_visibility NOT NULL DEFAULT 'private'
 );
 

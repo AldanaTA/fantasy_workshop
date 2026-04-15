@@ -34,11 +34,13 @@ class AuthIdentityOut(IdOut):
 # Games
 class GameCreate(BaseModel):
     game_name: str = Field(min_length=1, max_length=200)
+    game_summary: Optional[str] = None
     visibility: str = "private"
 
 class GameOut(IdOut):
     owner_user_id: UUID
     game_name: str
+    game_summary: Optional[str]
     visibility: str
 
 # Content pack

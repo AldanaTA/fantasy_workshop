@@ -25,8 +25,14 @@ def key_active(content_id: UUID) -> str:
 def idx_pack(pack_id: UUID) -> str:
     return f"idx:content:pack:{pack_id}"
 
+def idx_category(category_id: UUID) -> str:
+    return f"idx:content:category:{category_id}"
+
 def key_by_pack(pack_id: UUID, limit: int, offset: int) -> str:
     return f"content:by-pack:{pack_id}:l={limit}:o={offset}"
+
+def key_by_category(category_id: UUID, limit: int, offset: int) -> str:
+    return f"content:by-category:{category_id}:l={limit}:o={offset}"
 
 def idx_versions(content_id: UUID) -> str:
     return f"idx:content:versions:{content_id}"
@@ -46,8 +52,10 @@ async def create_content(
     await db.commit()
     await db.refresh(row)
 
-    # invalidate pack lists
+    # invalidate pack and category lists for new content
     await cache_index_invalidate(r, idx_pack(row.pack_id))
+    if row.category_id:
+        await cache_index_invalidate(r, idx_category(row.category_id))
     return row
 
 @router.get("/{content_id}", response_model=ContentOut, dependencies=[Depends(require_user)])
@@ -106,6 +114,49 @@ async def list_content_by_pack(
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
     return out
 
+@router.get("/by-category/{category_id}", dependencies=[Depends(require_user)])
+async def list_content_by_category(
+    category_id: UUID,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    r: Redis = Depends(get_redis),
+):
+    limit = min(max(limit, 1), 200)
+    k = key_by_category(category_id, limit, offset)
+    idx = idx_category(category_id)
+
+    cached = await cache_get_json(r, k)
+    if cached is not None:
+        return cached
+
+    res = await db.execute(
+        select(Content)
+        .where(Content.category_id == category_id)
+        .order_by(Content.updated_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = list(res.scalars().all())
+
+    out = [
+        {
+            "id": str(x.id),
+            "pack_id": str(x.pack_id),
+            "category_id": str(x.category_id),
+            "content_type": x.content_type,
+            "name": x.name,
+            "summary": x.summary,
+            "created_at": x.created_at.isoformat(),
+            "updated_at": x.updated_at.isoformat(),
+        }
+        for x in rows
+    ]
+
+    await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
+    await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
+    return out
+
 @router.patch("/{content_id}", response_model=ContentOut, dependencies=[Depends(require_user)])
 async def patch_content(
     content_id: UUID,
@@ -121,6 +172,7 @@ async def patch_content(
         patch.pop(k, None)
 
     old_pack = row.pack_id
+    old_category = row.category_id
 
     for k, v in patch.items():
         if hasattr(row, k):
@@ -134,6 +186,12 @@ async def patch_content(
     if row.pack_id != old_pack:
         await cache_index_invalidate(r, idx_pack(row.pack_id))
 
+    # invalidate category cache when the category changes or content is updated
+    if old_category:
+        await cache_index_invalidate(r, idx_category(old_category))
+    if row.category_id and row.category_id != old_category:
+        await cache_index_invalidate(r, idx_category(row.category_id))
+
     return row
 
 @router.delete("/{content_id}", status_code=204, dependencies=[Depends(require_user)])
@@ -145,10 +203,13 @@ async def delete_content(
     row = await db.get(Content, content_id)
     if row:
         pack_id = row.pack_id
+        category_id = row.category_id
         await db.delete(row)
         await db.commit()
 
         await cache_index_invalidate(r, idx_pack(pack_id))
+        if category_id:
+            await cache_index_invalidate(r, idx_category(category_id))
         await cache_index_invalidate(r, idx_versions(content_id))
         await r.delete(key_active(content_id))
 

@@ -110,6 +110,8 @@ class Game(Base):
     )
 
     game_name: Mapped[str] = mapped_column(Text, nullable=False)
+    
+    game_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     visibility: Mapped[str] = mapped_column(Text, nullable=False, default="private")
 
