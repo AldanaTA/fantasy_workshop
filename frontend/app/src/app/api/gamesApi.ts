@@ -1,10 +1,11 @@
 import { API_CONFIG } from './apiConfig';
 import type { Game } from './models';
+import { getAccessToken } from './authStorage';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_GAMES;
 const authHeaders = (token?: string) => {
-  const t = token ?? localStorage.getItem('authToken');
-  return t ? { Authorization: `Bearer ${t}` } : {};
+  const t = token ?? getAccessToken();
+  return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -22,6 +23,9 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 export const gamesApi = {
   list: (limit = 50, offset = 0, token?: string) => request<Game[]>(`?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+
+  listEditable: (limit = 50, offset = 0, token?: string) =>
+    request<Game[]>(`/editable?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
   create: (payload: Partial<Game>, token?: string) => request<Game>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 

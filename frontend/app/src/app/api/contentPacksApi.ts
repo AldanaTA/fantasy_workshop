@@ -6,7 +6,7 @@ const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT_PACKS;
 
 const authHeaders = (token?: string) => {
   const t = token ?? getAccessToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
+  return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -24,6 +24,9 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 export const contentPacksApi = {
   list: (limit = 50, offset = 0, token?: string) => request<ContentPack[]>(`?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+
+  listByGame: (gameId: string, limit = 50, offset = 0, token?: string) =>
+    request<ContentPack[]>(`/by-game/${gameId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
   get: (id: string, token?: string) => request<ContentPack>(`/${id}`, { method: 'GET', headers: authHeaders(token) }),
 

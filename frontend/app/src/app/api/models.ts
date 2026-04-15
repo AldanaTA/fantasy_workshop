@@ -19,6 +19,8 @@ export interface Game {
 	id: UUID;
 	owner_user_id: UUID;
 	game_name: string;
+	game_summary?: string | null;
+	visibility: string;
 }
 
 export interface ContentPack {

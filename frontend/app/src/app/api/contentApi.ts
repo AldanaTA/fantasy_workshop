@@ -37,6 +37,9 @@ export const contentApi = {
   listByPack: (packId: string, limit = 50, offset = 0, token?: string) =>
     request<Content[]>(`/by-pack/${packId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
+  listByCategory: (categoryId: string, limit = 50, offset = 0, token?: string) =>
+    request<Content[]>(`/by-category/${categoryId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+
   patch: (contentId: string, patch: Partial<Content>, token?: string) =>
     request<Content>(`/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 
