@@ -23,7 +23,7 @@ class InviteStatus(PyEnum):
 
 class GameRole(PyEnum):
     EDITOR = "editor"
-    VIEWER = "viewer"
+    PURCHASER = "purchaser"
 
 
 class Base(DeclarativeBase):
@@ -123,7 +123,7 @@ class UserGameRole(Base):
 
     game_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), primary_key=True)
 
-    role: Mapped[GameRole] = mapped_column(Enum(GameRole), nullable=False)
+    role: Mapped[GameRole] = mapped_column(Enum(GameRole, name="game_role"), nullable=False)
 
 
 class ContentPack(Base):

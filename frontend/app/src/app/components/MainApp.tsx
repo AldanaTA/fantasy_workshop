@@ -4,6 +4,7 @@ import { UserRole} from '../types/game';
 import { Button } from './ui/button';
 import { Toaster } from './ui/sonner';
 import { BookOpen, Scroll, User, LogOut } from 'lucide-react';
+import { GameCreatorDashboard } from './GameCreatorDashboard';
 
 
 import {
@@ -130,6 +131,16 @@ export function MainApp({ tokens, onLogout }: MainAppProps) {
 
       {/* Main Content */}
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 pb-20 sm:pb-8">
+        {currentRole === 'creator' ? (
+          <GameCreatorDashboard />
+        ) : (
+          <div className="rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
+            <h2 className="text-xl font-semibold">{currentRole === 'gm' ? 'Game Master' : 'Player'} View</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Switch to Creator mode to manage games, or continue with your current role for campaign workflows.
+            </p>
+          </div>
+        )}
       </main>
 
       {/* Unsaved Changes Dialog */}
