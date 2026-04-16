@@ -1,5 +1,5 @@
 import { API_CONFIG } from './apiConfig';
-import type { Game } from './models';
+import type { Game, GameCreate } from './models';
 import { getAccessToken } from './authStorage';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_GAMES;
@@ -27,7 +27,7 @@ export const gamesApi = {
   listEditable: (limit = 50, offset = 0, token?: string) =>
     request<Game[]>(`/editable?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
-  create: (payload: Partial<Game>, token?: string) => request<Game>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+  create: (payload: GameCreate, token?: string) => request<Game>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
   patch: (id: string, patch: Partial<Game>, token?: string) => request<Game>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 

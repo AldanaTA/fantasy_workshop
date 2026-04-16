@@ -23,6 +23,12 @@ export interface Game {
 	visibility: string;
 }
 
+export interface GameCreate {
+	game_name: string;
+	game_summary?: string | null;
+	visibility?: string;
+}
+
 export interface ContentPack {
 	id: UUID;
 	game_id: UUID;
