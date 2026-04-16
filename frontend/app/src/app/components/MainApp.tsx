@@ -4,7 +4,7 @@ import { UserRole} from '../types/game';
 import { Button } from './ui/button';
 import { Toaster } from './ui/sonner';
 import { BookOpen, Scroll, User, LogOut } from 'lucide-react';
-import { GameCreatorDashboard } from './GameCreatorDashboard';
+import { GameCreatorDashboard } from './game_creator/GameCreatorDashboard';
 
 
 import {

@@ -11,6 +11,7 @@ CORE RULES (MANDATORY)
 - You MUST ONLY implement what is visible in the provided thumbnail.
 - If something is unclear or missing, ASK instead of assuming.
 - Do NOT move ahead to the next screen until explicitly told.
+- Each Thumbnail must be its own component for easy code mantainability
 
 2. STEP-BY-STEP EXECUTION
 - Only build ONE screen or ONE component at a time.
