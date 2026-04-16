@@ -1,3 +1,6 @@
+import { Visibility } from "../types/visibility";
+import { Status} from "../types/status";
+
 export type UUID = string;
 export type DateTime = string; // ISO 8601
 export type JSONDict = Record<string, any>;
@@ -20,13 +23,14 @@ export interface Game {
 	owner_user_id: UUID;
 	game_name: string;
 	game_summary?: string | null;
-	visibility: string;
+	visibility: Visibility;
 }
 
 export interface GameCreate {
+	owner_user_id: UUID;
 	game_name: string;
 	game_summary?: string | null;
-	visibility?: string;
+	visibility: Visibility;
 }
 
 export interface ContentPack {
@@ -36,8 +40,8 @@ export interface ContentPack {
 	campaign_id?: UUID | null;
 	pack_name: string;
 	description?: string | null;
-	visibility: string;
-	status: string;
+	visibility: Visibility;
+	status: Status;
 	created_at: DateTime;
 	updated_at: DateTime;
 }

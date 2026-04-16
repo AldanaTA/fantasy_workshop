@@ -19,7 +19,7 @@ async def create_game(
     user = Depends(require_user),
     db: AsyncSession = Depends(get_db)
 ):
-    obj = Game(**game.model_dump(), owner_user_id=user.id)
+    obj = Game(**game.model_dump(), owner_user_id=user['uid'])
     obj.id = new_id()
     db.add(obj)
     await db.commit()
@@ -27,7 +27,7 @@ async def create_game(
     pack = ContentPack(
         id=new_id(),
         game_id=obj.id,
-        owner_id=user.id,
+        owner_id=obj.owner_user_id,
         pack_name="Main Pack",
         visibility="private",
         status="draft"
@@ -150,7 +150,7 @@ async def delete_game(
     game = await db.get(Game, id)
     if not game:
         raise HTTPException(404, "Game not found")
-    if game.owner_user_id != user.id:
+    if game.owner_user_id != UUID(user["uid"]):
         raise HTTPException(403, "Only owner can delete")
     await db.delete(game)
     await db.commit()

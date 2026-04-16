@@ -43,6 +43,22 @@ export function getCurrentTokens(): TokenPair | null {
   }
 }
 
+export function get_userId(): string {
+  const stored = localStorage.getItem('currentTokens');
+  if (!stored) {
+    throw new Error('No current tokens stored.');
+  }
+  try {
+    const parsed = JSON.parse(stored) as TokenPair;
+    if (!parsed.user_id) {
+      throw new Error('User ID missing from stored tokens.');
+    }
+    return parsed.user_id;
+  } catch {
+    throw new Error('Unable to parse current tokens.');
+  }
+}
+
 export function get_display_name() {
   return localStorage.getItem('display_name');
 }

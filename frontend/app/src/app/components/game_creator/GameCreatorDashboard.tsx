@@ -1,7 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
 import {
@@ -25,10 +33,19 @@ import {
 import { Eye, Edit3, Plus, Trash2 } from 'lucide-react';
 import { Game } from '../../api/models';
 import { gamesApi } from '../../api/gamesApi';
+import { get_userId } from '../../api/authStorage';
+import {  Visibility, VISIBILITY} from '../../types/visibility';
 
-const emptyForm = {
+interface FormState {
+  game_name: string;
+  game_summary: string;
+  visibility: Visibility;
+}
+
+const emptyForm: FormState = {
   game_name: '',
   game_summary: '',
+  visibility: VISIBILITY.PRIVATE,
 };
 
 export function GameCreatorDashboard() {
@@ -42,6 +59,13 @@ export function GameCreatorDashboard() {
   const [viewTarget, setViewTarget] = useState<Game | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const summaryRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeSummaryTextarea = (textarea: HTMLTextAreaElement | null) => {
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  };
 
   const loadGames = async () => {
     setIsLoading(true);
@@ -62,6 +86,10 @@ export function GameCreatorDashboard() {
     loadGames();
   }, []);
 
+  useEffect(() => {
+    resizeSummaryTextarea(summaryRef.current);
+  }, [form.game_summary, isDialogOpen]);
+
   const openCreateDialog = () => {
     setDialogMode('create');
     setForm(emptyForm);
@@ -75,6 +103,7 @@ export function GameCreatorDashboard() {
     setForm({
       game_name: game.game_name,
       game_summary: game.game_summary ?? '',
+      visibility: game.visibility || VISIBILITY.PRIVATE
     });
     setIsDialogOpen(true);
   };
@@ -97,13 +126,16 @@ export function GameCreatorDashboard() {
     try {
       if (dialogMode === 'create') {
         await gamesApi.create({
+          owner_user_id: get_userId(),
           game_name: form.game_name.trim(),
           game_summary: form.game_summary.trim() || undefined,
+          visibility: form.visibility,
         });
       } else if (activeGame) {
         await gamesApi.patch(activeGame.id, {
           game_name: form.game_name.trim(),
           game_summary: form.game_summary.trim() || undefined,
+          visibility: form.visibility,
         });
       }
       closeDialog();
@@ -176,6 +208,9 @@ export function GameCreatorDashboard() {
                       <CardDescription>
                         {game.game_summary || 'No summary available.'}
                       </CardDescription>
+                      <div className="mt-2 inline-flex items-center rounded-full border border-border px-2 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        {game.visibility}
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => setViewTarget(game)}>
@@ -225,12 +260,35 @@ export function GameCreatorDashboard() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="game_summary">Summary</Label>
-              <Input
+              <Textarea
                 id="game_summary"
+                ref={summaryRef}
+                className="min-h-[120px]"
                 value={form.game_summary}
-                onChange={(event) => setForm((prev) => ({ ...prev, game_summary: event.target.value }))}
+                onChange={(event) => {
+                  setForm((prev) => ({ ...prev, game_summary: event.target.value }));
+                  resizeSummaryTextarea(event.currentTarget);
+                }}
                 placeholder="A compact tabletop system for fast fantasy play."
               />
+            </div>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="visibility">Visibility</Label>
+                <p className="text-xs text-muted-foreground">Who can view this game</p>
+              </div>
+              <Select
+                value={form.visibility}
+                onValueChange={(value) => setForm((prev) => ({ ...prev, visibility: value as Visibility }))}
+              >
+                <SelectTrigger id="visibility">
+                  <SelectValue placeholder="Select visibility" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={VISIBILITY.PRIVATE}>Private</SelectItem>
+                  <SelectItem value={VISIBILITY.PUBLIC}>Public</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {error ? (
@@ -266,6 +324,10 @@ export function GameCreatorDashboard() {
               <div>
                 <p className="text-sm text-muted-foreground">Summary</p>
                 <p>{viewTarget.game_summary || 'No summary available.'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Visibility</p>
+                <p className="font-medium capitalize">{viewTarget.visibility}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Game ID</p>

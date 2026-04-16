@@ -10,20 +10,37 @@ from enum import Enum as PyEnum
 
 
 class InviteTargetType(PyEnum):
-    CAMPAIGN = "campaign"
-    GAME = "game"
+    campaign = "campaign"
+    game = "game"
 
 
 class InviteStatus(PyEnum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    DECLINED = "declined"
-    EXPIRED = "expired"
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+    expired = "expired"
+
+
+class GameVisibility(PyEnum):
+    private = "private"
+    public = "public"
+
+
+class ContentPackVisibility(PyEnum):
+    private = "private"
+    game = "game"
+    public = "public"
+
+
+class ContentPackStatus(PyEnum):
+    draft = "draft"
+    published = "published"
+    archived = "archived"
 
 
 class GameRole(PyEnum):
-    EDITOR = "editor"
-    PURCHASER = "purchaser"
+    editor = "editor"
+    purchaser = "purchaser"
 
 
 class Base(DeclarativeBase):
@@ -113,7 +130,9 @@ class Game(Base):
     
     game_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    visibility: Mapped[str] = mapped_column(Text, nullable=False, default="private")
+    visibility: Mapped[GameVisibility] = mapped_column(
+        Enum(GameVisibility, name="game_visibility", native_enum=True), nullable=False, default=GameVisibility.private
+    )
 
 
 class UserGameRole(Base):
@@ -147,9 +166,13 @@ class ContentPack(Base):
 
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    visibility: Mapped[str] = mapped_column(Text, nullable=False)
+    visibility: Mapped[ContentPackVisibility] = mapped_column(
+        Enum(ContentPackVisibility, name="content_pack_visibility", native_enum=True), nullable=False, default=ContentPackVisibility.private
+    )
 
-    status: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[ContentPackStatus] = mapped_column(
+        Enum(ContentPackStatus, name="content_pack_status", native_enum=True), nullable=False, default=ContentPackStatus.draft
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -488,7 +511,7 @@ class Invitations(Base):
 
     token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
 
-    status: Mapped[InviteStatus] = mapped_column(Enum(InviteStatus), nullable=False, default=InviteStatus.PENDING)
+    status: Mapped[InviteStatus] = mapped_column(Enum(InviteStatus), nullable=False, default=InviteStatus.pending)
 
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
