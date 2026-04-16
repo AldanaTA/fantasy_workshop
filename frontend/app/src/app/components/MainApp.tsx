@@ -4,7 +4,7 @@ import { UserRole} from '../types/game';
 import { Button } from './ui/button';
 import { Toaster } from './ui/sonner';
 import { BookOpen, Scroll, User, LogOut } from 'lucide-react';
-import { CreatorWorkspace } from './game_creator/CreatorWorkspace';
+
 
 import {
   AlertDialog,
@@ -130,16 +130,6 @@ export function MainApp({ tokens, onLogout }: MainAppProps) {
 
       {/* Main Content */}
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 pb-20 sm:pb-8">
-        {currentRole === 'creator' ? (
-          <CreatorWorkspace />
-        ) : (
-          <div className="rounded-3xl border border-border bg-card p-8 text-center text-muted-foreground">
-            <h2 className="text-xl font-semibold text-foreground">Role view not implemented yet</h2>
-            <p className="mt-3 max-w-xl mx-auto text-sm leading-6">
-              The creator workspace is available for game creation and content editing. Switch to the Creator role to use it.
-            </p>
-          </div>
-        )}
       </main>
 
       {/* Unsaved Changes Dialog */}
