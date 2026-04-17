@@ -34,5 +34,5 @@ export const contentPacksApi = {
 
   patch: (id: string, patch: Partial<ContentPack>, token?: string) => request<ContentPack>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
 
-  delete: (id: string, token?: string) => request<void>(`/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
+  delete: (id: string, token?: string) => request<void>(`userdel/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
 };

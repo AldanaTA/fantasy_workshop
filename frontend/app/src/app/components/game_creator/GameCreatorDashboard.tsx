@@ -165,7 +165,10 @@ export function GameCreatorDashboard() {
   };
   if (viewTarget) {
     return (
-      <ViewGamePacks game={viewTarget} />
+      <ViewGamePacks 
+      game={viewTarget}
+      onBack={() => setViewTarget(null)}
+      />
     );
   }
   return (
