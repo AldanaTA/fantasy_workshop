@@ -112,7 +112,7 @@ async def get_game(
     if not game:
         raise HTTPException(404, "Game not found")
     has_role = await db.scalar(
-        select(exists().where(UserGameRole.user_id == user.id, UserGameRole.game_id == game.id))
+        select(exists().where(UserGameRole.user_id == UUID(user["uid"]), UserGameRole.game_id == game.id))
     )
     if not (game.owner_user_id == user.id or game.visibility == "public" or has_role):
         raise HTTPException(403, "Access denied")
@@ -129,7 +129,7 @@ async def patch_game(
     game = await db.get(Game, id)
     if not game:
         raise HTTPException(404, "Game not found")
-    if game.owner_user_id != user.id :
+    if game.owner_user_id != UUID(user["uid"]):
         raise HTTPException(403, "Only owner can modify")
     for protected in ("id", "created_at", "updated_at", "owner_user_id"):
         updates.pop(protected, None)

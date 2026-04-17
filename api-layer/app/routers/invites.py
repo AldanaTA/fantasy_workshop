@@ -22,7 +22,7 @@ async def create_invite(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ):
-    await RateLimiter(redis, f"invite:creator:{user.id}:create:{data.target_id}",rate_per_sec=5/60, burst=10)
+    await RateLimiter(redis, f"invite:creator:{user['uid']}:create:{data.target_id}",rate_per_sec=5/60, burst=10)
 
     raw_token = secrets.token_urlsafe(32)
     token_hash = hash_token(raw_token)
@@ -65,7 +65,7 @@ async def accept_invite(
     user = Depends(require_user),
     redis: Redis = Depends(get_redis),
 ):
-    await RateLimiter(redis, f"invite:accept:{user.id}", rate_per_sec=5/60, burst=10)
+    await RateLimiter(redis, f"invite:accept:{user['uid']}", rate_per_sec=5/60, burst=10)
 
     token_hash = hash_token(data.token)
 
@@ -135,7 +135,7 @@ async def list_invites(user = Depends(require_user),
         WHERE invitee_user_id = :user_id
         AND status = 'pending'
         """,
-        {"user_id": user.id},
+        {"user_id": user["uid"]},
     )
 
     return [dict(row) for row in result.fetchall()]
