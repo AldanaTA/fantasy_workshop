@@ -30,11 +30,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Eye, Edit3, Plus, Trash2 } from 'lucide-react';
+import { Eye, Edit3, Plus, Trash2, View } from 'lucide-react';
 import { Game } from '../../api/models';
 import { gamesApi } from '../../api/gamesApi';
 import { get_userId } from '../../api/authStorage';
 import {  Visibility, VISIBILITY} from '../../types/visibility';
+import {ViewGamePacks} from './ViewGamePacks';
 
 interface FormState {
   game_name: string;
@@ -160,8 +161,13 @@ export function GameCreatorDashboard() {
     } catch (err) {
       setError((err as Error)?.message || 'Failed to delete game.');
     }
+  
   };
-
+  if (viewTarget) {
+    return (
+      <ViewGamePacks game={viewTarget} />
+    );
+  }
   return (
     <div className="space-y-6">
       <div className="grid gap-4 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
@@ -236,7 +242,7 @@ export function GameCreatorDashboard() {
           </div>
         )}
       </div>
-
+      
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -308,41 +314,6 @@ export function GameCreatorDashboard() {
           </form>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={Boolean(viewTarget)} onOpenChange={(open) => { if (!open) setViewTarget(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Game Details</DialogTitle>
-            <DialogDescription>View the selected game information.</DialogDescription>
-          </DialogHeader>
-          {viewTarget ? (
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Name</p>
-                <p className="font-medium">{viewTarget.game_name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Summary</p>
-                <p>{viewTarget.game_summary || 'No summary available.'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Visibility</p>
-                <p className="font-medium capitalize">{viewTarget.visibility}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Game ID</p>
-                <p className="break-all text-xs text-muted-foreground">{viewTarget.id}</p>
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewTarget(null)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
