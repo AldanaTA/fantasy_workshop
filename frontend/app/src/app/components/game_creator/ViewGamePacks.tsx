@@ -30,13 +30,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Eye, Edit3, Plus, CircleArrowLeft,Trash2,} from 'lucide-react';
+import { Eye, Edit3, Plus, CircleArrowLeft,Trash2, View,} from 'lucide-react';
 import { ContentPack, Game } from '../../api/models';
 import {contentPacksApi} from '../../api/contentPacksApi';
 import { get_userId } from '../../api/authStorage';
 import { VISIBILITY,Visibility } from '../../types/visibility';
 import { STATUS, Status } from '../../types/status';
 import { useToast } from '../ui/toastProvider';
+import { ViewPackCategories } from './ViewPackCategories';
 
 interface FormState {
   pack_name: string;
@@ -181,6 +182,15 @@ export function ViewGamePacks({ game, onBack }: Props) {
   
     }
   };
+  if (viewTarget) {
+    return (
+      <ViewPackCategories
+      pack={viewTarget}
+      onBackToPacks={() => setViewTarget(null)}
+      onGoToDashboard={onBack}
+      />
+    );
+  }
   return (
     <div className="space-y-6">
       <div className="grid gap-4 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
@@ -245,28 +255,28 @@ export function ViewGamePacks({ game, onBack }: Props) {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialogMode === 'create' ? 'Create Game' : 'Edit Game'}</DialogTitle>
+            <DialogTitle>{dialogMode === 'create' ? 'Create Pack' : 'Edit Pack'}</DialogTitle>
             <DialogDescription>
               {dialogMode === 'create'
-                ? 'Add a new game that you can manage as creator.'
-                : 'Update the game details and save your changes.'}
+                ? 'Add a new content pack that you can manage as creator.'
+                : 'Update the content pack details and save your changes.'}
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleDialogSubmit}>
             <div className="grid gap-2">
-              <Label htmlFor="game_name">Name</Label>
+              <Label htmlFor="pack_name">Name</Label>
               <Input
-                id="game_name"
+                id="pack_name"
                 value={form.pack_name}
                 onChange={(event) => setForm((prev) => ({ ...prev, pack_name: event.target.value }))}
-                placeholder="My Adventure System"
+                placeholder="Mysteries of Lunaris Tower"
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="game_summary">Summary</Label>
+              <Label htmlFor="pack_description">Description</Label>
               <Textarea
-                id="game_summary"
+                id="pack_description"
                 ref={summaryRef}
                 className="min-h-[120px]"
                 value={form.pack_description}
@@ -304,7 +314,7 @@ export function ViewGamePacks({ game, onBack }: Props) {
 
             <DialogFooter>
               <Button type="submit" className="w-full sm:w-auto">
-                {dialogMode === 'create' ? 'Create Game' : 'Save Changes'}
+                {dialogMode === 'create' ? 'Create Pack' : 'Save Changes'}
               </Button>
               <Button variant="outline" type="button" onClick={closeDialog} className="w-full sm:w-auto">
                 Cancel
