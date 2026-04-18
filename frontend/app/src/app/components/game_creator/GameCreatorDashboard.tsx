@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { use, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import {ToastProvider} from  '../ui/toastProvider';
+import {ToastProvider, useToast} from  '../ui/toastProvider';
 import {
   Select,
   SelectContent,
@@ -62,6 +62,7 @@ export function GameCreatorDashboard() {
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement | null>(null);
+  const {toastPromise} = useToast();
 
   const resizeSummaryTextarea = (textarea: HTMLTextAreaElement | null) => {
     if (!textarea) return;
@@ -127,23 +128,30 @@ export function GameCreatorDashboard() {
 
     try {
       if (dialogMode === 'create') {
-        await gamesApi.create({
+        await toastPromise(gamesApi.create({
           owner_user_id: get_userId(),
           game_name: form.game_name.trim(),
           game_summary: form.game_summary.trim() || undefined,
           visibility: form.visibility,
+        }), {
+          loading: "Creating game...",
+          success: "Game created successfully.",
+          error: "Failed to create game."
         });
       } else if (activeGame) {
-        await gamesApi.patch(activeGame.id, {
+        await toastPromise(gamesApi.patch(activeGame.id, {
           game_name: form.game_name.trim(),
           game_summary: form.game_summary.trim() || undefined,
           visibility: form.visibility,
+        }), {
+          loading: "Updating game...",
+          success: "Game updated successfully.",
+          error: "Failed to update game."
         });
       }
       closeDialog();
       await loadGames();
     } catch (err) {
-      setError((err as Error)?.message || 'Failed to save game.');
     }
   };
 
@@ -155,12 +163,15 @@ export function GameCreatorDashboard() {
     setError(null);
 
     try {
-      await gamesApi.delete(deleteTarget.id);
+      await toastPromise(gamesApi.delete(deleteTarget.id), {
+        loading: "Deleting game...",
+        success: "Game deleted successfully.",
+        error: "Failed to delete game."
+      });
       setIsDeleteOpen(false);
       setDeleteTarget(null);
       await loadGames();
     } catch (err) {
-      setError((err as Error)?.message || 'Failed to delete game.');
     }
   
   };

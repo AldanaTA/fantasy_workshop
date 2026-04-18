@@ -140,24 +140,64 @@ function ToastItem({
   dismiss: (id: string) => void;
 }) {
   const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
   const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
+  const lockedDirection = useRef<"horizontal" | "vertical" | null>(null);
+
+  const DISMISS_THRESHOLD = 100;
 
   const onTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
+    const touch = e.touches[0];
+    startX.current = touch.clientX;
+    startY.current = touch.clientY;
+    lockedDirection.current = null;
+    setIsDragging(true);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
-    if (startX.current === null) return;
-    const delta = e.touches[0].clientX - startX.current;
-    setDragX(delta);
+    if (startX.current === null || startY.current === null) return;
+
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - startX.current;
+    const deltaY = touch.clientY - startY.current;
+
+    if (!lockedDirection.current) {
+      if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+        lockedDirection.current =
+          Math.abs(deltaX) > Math.abs(deltaY) ? "horizontal" : "vertical";
+      }
+    }
+
+    if (lockedDirection.current !== "horizontal") return;
+
+    setDragX(deltaX);
+  };
+
+  const resetGesture = () => {
+    startX.current = null;
+    startY.current = null;
+    lockedDirection.current = null;
+    setIsDragging(false);
   };
 
   const onTouchEnd = () => {
-    if (Math.abs(dragX) > 100) {
-      dismiss(toast.id);
+    if (lockedDirection.current === "horizontal") {
+      if (Math.abs(dragX) > DISMISS_THRESHOLD) {
+        dismiss(toast.id);
+        resetGesture();
+        return;
+      }
     }
+
     setDragX(0);
-    startX.current = null;
+    resetGesture();
+  };
+
+  const onTouchCancel = () => {
+    setDragX(0);
+    resetGesture();
   };
 
   const variantStyles = {
@@ -166,15 +206,22 @@ function ToastItem({
     destructive: "bg-red-500 text-white",
     loading: "bg-blue-500 text-white",
   };
-  
+
+  const opacity = Math.max(0.4, 1 - Math.abs(dragX) / 220);
 
   return (
     <div
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      style={{ transform: `translateX(${dragX}px)` }}
-      className={`px-4 py-3 rounded-lg shadow-lg transition-all duration-300
+      onTouchCancel={onTouchCancel}
+      style={{
+        transform: `translateX(${dragX}px)`,
+        opacity,
+        transition: isDragging ? "none" : "transform 0.2s ease, opacity 0.2s ease",
+        touchAction: "pan-y",
+      }}
+      className={`px-4 py-3 rounded-lg shadow-lg will-change-transform
         animate-in slide-in-from-bottom fade-in
         ${variantStyles[toast.variant || "default"]}
       `}
@@ -189,7 +236,7 @@ function ToastItem({
 
         <button
           onClick={() => dismiss(toast.id)}
-          className="opacity-70 hover:opacity-100"
+          className="opacity-70 hover:opacity-100 shrink-0"
         >
           ✕
         </button>

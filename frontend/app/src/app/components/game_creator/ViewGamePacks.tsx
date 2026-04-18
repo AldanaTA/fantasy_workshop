@@ -135,24 +135,31 @@ export function ViewGamePacks({ game, onBack }: Props) {
 
     try {
       if (dialogMode === 'create') {
-        await contentPacksApi.create({
+        await toastPromise(contentPacksApi.create({
           owner_id: get_userId(),
           game_id: game.id,
           pack_name: form.pack_name.trim(),
           description: form.pack_description.trim() || undefined,
           visibility: form.visibility,
+        }), {
+          loading: "Creating content pack...",
+          success: "Content pack created successfully.",
+          error: "Failed to create content pack."
         });
       } else if (activePack) {
-        await contentPacksApi.patch(activePack.id, {
+        await toastPromise(contentPacksApi.patch(activePack.id, {
           pack_name: form.pack_name.trim(),
           description: form.pack_description.trim() || undefined,
           visibility: form.visibility,
+        }), {
+          loading: "Updating content pack...",
+          success: "Content pack updated successfully.",
+          error: "Failed to update content pack."
         });
       }
       closeDialog();
       await loadPacks();
     } catch (err) {
-      setError((err as Error)?.message || 'Failed to save content pack.');
     }
   };
   const handleDelete = async () => {
