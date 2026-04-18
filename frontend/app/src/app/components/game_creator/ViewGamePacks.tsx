@@ -36,6 +36,7 @@ import {contentPacksApi} from '../../api/contentPacksApi';
 import { get_userId } from '../../api/authStorage';
 import { VISIBILITY,Visibility } from '../../types/visibility';
 import { STATUS, Status } from '../../types/status';
+import { useToast } from '../ui/toastProvider';
 
 interface FormState {
   pack_name: string;
@@ -67,6 +68,7 @@ export function ViewGamePacks({ game, onBack }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<ContentPack | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement | null>(null);
+  const {toastPromise} = useToast();
 
   const resizeSummaryTextarea = (textarea: HTMLTextAreaElement | null) => {
     if (!textarea) return;
@@ -153,21 +155,23 @@ export function ViewGamePacks({ game, onBack }: Props) {
       setError((err as Error)?.message || 'Failed to save content pack.');
     }
   };
-
   const handleDelete = async () => {
-    if (!deleteTarget) {
-      return;
-    }
-
-    setError(null);
+    if (!deleteTarget) return;
 
     try {
-      await contentPacksApi.delete(deleteTarget.id);
+      await toastPromise(contentPacksApi.delete(deleteTarget.id), {
+        loading: "Deleting content pack...",
+        success: "Content pack deleted successfully.",
+        error: "Failed to delete content pack."
+      });
+
       setIsDeleteOpen(false);
       setDeleteTarget(null);
       await loadPacks();
+
+
     } catch (err) {
-      setError((err as Error)?.message || 'Failed to delete content pack.');
+  
     }
   };
   return (

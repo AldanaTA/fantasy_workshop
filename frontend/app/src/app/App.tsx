@@ -6,6 +6,7 @@ import { TokenPair } from './api/models';
 import { authApi } from './api/authApi';
 import { setCurrent,clearCurrent, get_refresh_token } from './api/authStorage';
 import { Save } from 'lucide-react';
+import { ToastProvider } from './components/ui/toastProvider';
 
 function App() {
   const [tokens, setTokens] = useState<TokenPair | null>(null);
@@ -63,6 +64,7 @@ function App() {
   }
 
   return (
+    <ToastProvider>
     <BrowserRouter>
       <Routes>
         <Route
@@ -88,6 +90,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   );
 }
 
