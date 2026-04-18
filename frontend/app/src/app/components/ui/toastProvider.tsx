@@ -6,6 +6,8 @@ import React, {
   useCallback,
 } from "react";
 
+import {v4 as uuid} from "uuid";
+
 type ToastVariant = "default" | "success" | "destructive" | "loading";
 
 type Toast = {
@@ -44,7 +46,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toast = useCallback((t: Omit<Toast, "id">) => {
-    const id = crypto.randomUUID();
+    const id = uuid();
 
     const toastObj: Toast = {
       id,
@@ -103,12 +105,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   },
   [toast, dismiss]
 );
+try{
   return (
     <ToastContext.Provider value={{ toast, dismiss, toastPromise }}>
       {children}
       <ToastViewport toasts={toasts} dismiss={dismiss} />
     </ToastContext.Provider>
   );
+}catch(e){
+  console.error("Error rendering ToastProvider:",e);
+}
+
   function ToastViewport({
   toasts,
   dismiss,
@@ -117,7 +124,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   dismiss: (id: string) => void;
 }) {
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md flex flex-col-reverse gap-2 z-50">
+    <div className="h-auto fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md flex flex-col-reverse gap-2 z-50">
       {toasts.map((t) => (
         <ToastItem key={t.id} toast={t} dismiss={dismiss} />
       ))}
