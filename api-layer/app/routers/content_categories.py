@@ -17,22 +17,23 @@ router = crud_router(
     prefix="/content/categories",
     require_auth=True)
 
-@router.delete("userdel/{category_id}", dependencies=[Depends(require_user)])
+@router.delete("/userdel/{category_id}", dependencies=[Depends(require_user)])
 async def delete_content_category(
     category_id: UUID,
     user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     user_id = UUID(user["uid"]) if isinstance(user, dict) else user.id
+    category = await db.get(ContentCategory, category_id)
+    if not category:
+        raise HTTPException(404, "Content category not found")
+    
     category_amount = await db.scalar(
-        select(func.count(ContentCategory.id)).where(ContentCategory.pack_id == category_id)
+        select(func.count(ContentCategory.id)).where(ContentCategory.pack_id == category.pack_id)
     )
     if category_amount == 1:
         raise HTTPException(400, "Cannot delete the only content category of a pack")
     
-    category = await db.get(ContentCategory, category_id)
-    if not category:
-        raise HTTPException(404, "Content category not found")
     pack = await db.get(ContentPack, category.pack_id)
     if not pack:
         raise HTTPException(404, "Content pack not found")
@@ -48,7 +49,7 @@ async def delete_content_category(
         ))
     )
     if not (game.owner_user_id == user_id or has_editor_role):
-        raise HTTPException(403, "Access denied")
+        raise HTTPException(403, "Only the owner or editors can delete content categories")
 
     await db.delete(category)
     await db.commit()

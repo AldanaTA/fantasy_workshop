@@ -126,7 +126,10 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
         }), {
           loading: "Creating content category...",
           success: "Content category created successfully.",
-          error: "Failed to create content category."
+          error: (e) =>
+        (e as any)?.response?.data?.detail ||
+        (e as Error)?.message ||
+        "Failed to create content category."
         });
       } else if (activeCategory) {
         await toastPromise(contentCategoriesApi.patch(activeCategory.id, {
@@ -135,7 +138,10 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
         }), {
           loading: "Updating content category...",
           success: "Content category updated successfully.",
-          error: "Failed to update content category."
+          error: (e) =>
+        (e as any)?.response?.data?.detail ||
+        (e as Error)?.message ||
+        "Failed to update content category."
         });
       }
       closeDialog();
@@ -150,7 +156,10 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
       await toastPromise(contentCategoriesApi.delete(deleteTarget.id), {
         loading: "Deleting content category...",
         success: "Content category deleted successfully.",
-        error: "Failed to delete content category."
+        error: (e) =>
+        (e as any)?.response?.data?.detail ||
+        (e as Error)?.message ||
+        "Failed to delete content category."
       });
 
       setIsDeleteOpen(false);

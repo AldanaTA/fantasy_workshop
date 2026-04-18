@@ -18,15 +18,18 @@ type Toast = {
   duration?: number;
 };
 
+type ToastPromiseMessages = {
+  loading: string;
+  success: string;
+  error: string | ((e: unknown) => string);
+};
+
 type ToastContextType = {
   toast: (t: Omit<Toast, "id">) => string;
   dismiss: (id: string) => void;
   toastPromise: <T>
     (promise: Promise<T>, 
-     msgs: { 
-        loading: string; 
-        success: string; 
-        error: string }
+     msgs: ToastPromiseMessages
     ) => Promise<T>;
 };
 
@@ -66,11 +69,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const toastPromise = useCallback(
     async <T,>(
       promise: Promise<T>,
-      msgs: {
-        loading: string;
-        success: string;
-        error: string;
-      }
+      msgs: ToastPromiseMessages
     ) => {
       const id = toast({
         title: "Loading",
@@ -94,12 +93,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }   catch (e) {
         dismiss(id);
 
-        toast({
-          title: "Error",
-          description: msgs.error,
-          variant: "destructive",
-        });
+      const errorMessage =
+        typeof msgs.error === "function"
+          ? msgs.error(e)
+          : msgs.error;
 
+       toast({
+        title: "Error",
+         description: errorMessage,
+        variant: "destructive",
+        });
+  
         throw e;
       }
   },

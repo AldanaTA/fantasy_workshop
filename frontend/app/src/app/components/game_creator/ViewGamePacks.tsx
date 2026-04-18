@@ -145,7 +145,10 @@ export function ViewGamePacks({ game, onBack }: Props) {
         }), {
           loading: "Creating content pack...",
           success: "Content pack created successfully.",
-          error: "Failed to create content pack."
+          error: (e) =>
+          (e as any)?.response?.data?.detail ||
+          (e as Error)?.message ||
+          "Failed to create content pack."
         });
       } else if (activePack) {
         await toastPromise(contentPacksApi.patch(activePack.id, {
@@ -155,7 +158,10 @@ export function ViewGamePacks({ game, onBack }: Props) {
         }), {
           loading: "Updating content pack...",
           success: "Content pack updated successfully.",
-          error: "Failed to update content pack."
+          error: (e) =>
+          (e as any)?.response?.data?.detail ||
+          (e as Error)?.message ||
+          "Failed to update content pack."
         });
       }
       closeDialog();
@@ -170,7 +176,10 @@ export function ViewGamePacks({ game, onBack }: Props) {
       await toastPromise(contentPacksApi.delete(deleteTarget.id), {
         loading: "Deleting content pack...",
         success: "Content pack deleted successfully.",
-        error: "Failed to delete content pack."
+        error: (e) =>
+        (e as any)?.response?.data?.detail ||
+        (e as Error)?.message ||
+        "Failed to delete content pack."
       });
 
       setIsDeleteOpen(false);

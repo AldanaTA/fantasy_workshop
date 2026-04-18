@@ -136,7 +136,10 @@ export function GameCreatorDashboard() {
         }), {
           loading: "Creating game...",
           success: "Game created successfully.",
-          error: "Failed to create game."
+          error: (e) =>
+          (e as any)?.response?.data?.detail ||
+          (e as Error)?.message ||
+          "Failed to create game.",
         });
       } else if (activeGame) {
         await toastPromise(gamesApi.patch(activeGame.id, {
@@ -146,7 +149,10 @@ export function GameCreatorDashboard() {
         }), {
           loading: "Updating game...",
           success: "Game updated successfully.",
-          error: "Failed to update game."
+          error: (e) =>
+          (e as any)?.response?.data?.detail ||
+          (e as Error)?.message ||
+          "Failed to update game."
         });
       }
       closeDialog();
@@ -166,7 +172,10 @@ export function GameCreatorDashboard() {
       await toastPromise(gamesApi.delete(deleteTarget.id), {
         loading: "Deleting game...",
         success: "Game deleted successfully.",
-        error: "Failed to delete game."
+        error: (e) =>
+      (e as any)?.response?.data?.detail ||
+      (e as Error)?.message ||
+      "Failed to delete game.",
       });
       setIsDeleteOpen(false);
       setDeleteTarget(null);
