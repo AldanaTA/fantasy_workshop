@@ -38,8 +38,7 @@ async def create_game(
     category = ContentCategory(
         id=new_id(),
         pack_id=pack.id,
-        name="Uncategorized",
-        sort_key=0
+        name="Uncategorized"
     )
     db.add(category)
     await db.commit()
@@ -155,4 +154,3 @@ async def delete_game(
     await db.delete(game)
     await db.commit()
     return {"status": "deleted"}
-

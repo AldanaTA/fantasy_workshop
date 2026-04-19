@@ -31,11 +31,9 @@ import { ContentMaker } from './contentMaker';
 
 interface FormState {
     name: string;
-    sort_key?: number;
 }
 const emptyForm: FormState = {
   name: '',
-  sort_key: undefined,
 };
 
 type CategoryContentState = {
@@ -76,6 +74,7 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [contentMakerTarget, setContentMakerTarget] = useState<ContentMakerTarget | null>(null);
   const [categoryContent, setCategoryContent] = useState<Record<string, CategoryContentState>>({});
+  const [isOrderDirty, setIsOrderDirty] = useState(false);
   const {toastPromise} = useToast();
 
   const loadPacks = async () => {
@@ -85,6 +84,7 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
     try {
       const contentCategories = await contentCategoriesApi.listByPack(pack.id, 100, 0);
       setContentCategories(contentCategories);
+      setIsOrderDirty(false);
     } catch (err) {
       setError((err as Error)?.message || 'Unable to load content categories.');
       setContentCategories([]);
@@ -182,7 +182,6 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
         await toastPromise(contentCategoriesApi.create({
           pack_id: pack.id,
           name: form.name.trim(),
-          sort_key: form.sort_key,
         }), {
           loading: "Creating content category...",
           success: "Content category created successfully.",
@@ -194,7 +193,6 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
       } else if (activeCategory) {
         await toastPromise(contentCategoriesApi.patch(activeCategory.id, {
           name: form.name.trim(),
-          sort_key: form.sort_key,
         }), {
           loading: "Updating content category...",
           success: "Content category updated successfully.",
@@ -258,6 +256,39 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
     }
   };
 
+  const moveCategory = (categoryId: string, direction: -1 | 1) => {
+    setContentCategories((prev) => {
+      const currentIndex = prev.findIndex((category) => category.id === categoryId);
+      const nextIndex = currentIndex + direction;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= prev.length) return prev;
+
+      const next = [...prev];
+      [next[currentIndex], next[nextIndex]] = [next[nextIndex], next[currentIndex]];
+      return next;
+    });
+    setIsOrderDirty(true);
+  };
+
+  const handleSaveOrder = async () => {
+    try {
+      const orderedCategories = await toastPromise(
+        contentCategoriesApi.reorder(pack.id, contentCategories.map((category) => category.id)),
+        {
+          loading: "Saving category order...",
+          success: "Category Rendering order saved successfully.",
+          error: (e) =>
+        (e as any)?.response?.data?.detail ||
+        (e as Error)?.message ||
+        "Failed to save category order."
+        }
+      );
+
+      setContentCategories(orderedCategories);
+      setIsOrderDirty(false);
+    } catch (err) {
+    }
+  };
+
   if (contentMakerTarget) {
     return (
       <ContentMaker
@@ -299,6 +330,16 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
               <span className="truncate sm:hidden">Category</span>
               <span className="hidden sm:inline">Content Category</span>
             </Button>
+            {contentCategories.length > 1 ? (
+              <Button
+                variant="secondary"
+                onClick={handleSaveOrder}
+                disabled={!isOrderDirty}
+                className="min-h-[44px] min-w-0 px-2 sm:shrink-0 sm:px-4"
+              >
+                <span className="truncate">Save Order</span>
+              </Button>
+            ) : null}
           </div>
         </div>
         <Separator />
@@ -310,14 +351,34 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
           <p>No content categories found. Create one to get started!</p>
         ) : (
           <div className="space-y-4">
-            {contentCategories.map((category) => (
+            {contentCategories.map((category, index) => (
               <Card key={category.id} className="border">
                 <CardHeader>
                   <CardTitle>{category.name}</CardTitle>
-                  <CardDescription>{category.sort_key}</CardDescription>
+                  <CardDescription>Render Order: {index + 1}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => moveCategory(category.id, -1)}
+                      disabled={index === 0}
+                      className="min-w-0 px-2 sm:px-3"
+                    >
+                      <ChevronUp className="h-4 w-4 shrink-0 sm:mr-2" />
+                      <span className="truncate">Up</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => moveCategory(category.id, 1)}
+                      disabled={index === contentCategories.length - 1}
+                      className="min-w-0 px-2 sm:px-3"
+                    >
+                      <ChevronDown className="h-4 w-4 shrink-0 sm:mr-2" />
+                      <span className="truncate">Down</span>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

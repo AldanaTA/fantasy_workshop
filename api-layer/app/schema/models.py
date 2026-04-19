@@ -196,6 +196,8 @@ class ContentCategory(Base):
     __tablename__ = "content_categories"
     __table_args__ = (
         UniqueConstraint("id", "pack_id", name="content_categories_id_pack_uq"),
+        UniqueConstraint("pack_id", "sort_key", name="content_categories_pack_sort_unique"),
+        UniqueConstraint("pack_id", "name", name="content_categories_pack_name_unique"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -208,7 +210,7 @@ class ContentCategory(Base):
 
     name: Mapped[str] = mapped_column(Text, nullable=False)
 
-    sort_key: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sort_key: Mapped[int] = mapped_column(Integer, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

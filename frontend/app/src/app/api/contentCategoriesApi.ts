@@ -29,5 +29,11 @@ export const contentCategoriesApi = {
 	get: (id: string, token?: string) => request<ContentCategory>(`/${id}`, { method: 'GET', headers: authHeaders(token) }),
 	create: (payload: Partial<ContentCategory>, token?: string) => request<ContentCategory>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 	patch: (id: string, patch: Partial<ContentCategory>, token?: string) => request<ContentCategory>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
+	reorder: (packId: string, categoryIds: string[], token?: string) =>
+		request<ContentCategory[]>(`/by-pack/${packId}/order`, {
+			method: 'PATCH',
+			body: JSON.stringify({ category_ids: categoryIds }),
+			headers: authHeaders(token),
+		}),
 	delete: (id: string, token?: string) => request<void>(`/userdel/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
 };

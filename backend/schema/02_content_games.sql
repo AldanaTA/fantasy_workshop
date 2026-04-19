@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS content_categories (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pack_id    UUID NOT NULL REFERENCES content_packs(id) ON DELETE CASCADE,
   name       TEXT NOT NULL,
-  sort_key   INT NOT NULL DEFAULT 0,
+  sort_key   INT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -79,6 +79,31 @@ CREATE TABLE IF NOT EXISTS content_categories (
 );
 
 CREATE INDEX IF NOT EXISTS content_categories_pack_id_idx ON content_categories(pack_id);
+
+CREATE OR REPLACE FUNCTION set_content_category_sort_key()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.sort_key IS NULL THEN
+    PERFORM 1
+    FROM content_packs
+    WHERE id = NEW.pack_id
+    FOR UPDATE;
+
+    SELECT COALESCE(MAX(sort_key) + 10, 10)
+    INTO NEW.sort_key
+    FROM content_categories
+    WHERE pack_id = NEW.pack_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_set_content_category_sort_key ON content_categories;
+CREATE TRIGGER trg_set_content_category_sort_key
+BEFORE INSERT ON content_categories
+FOR EACH ROW
+EXECUTE FUNCTION set_content_category_sort_key();
 
 -- CONTENT (stable identity)
 CREATE TABLE IF NOT EXISTS content (

@@ -68,7 +68,10 @@ class ContentPackOut(IdOut):
 class ContentCategoryCreate(BaseModel):
     pack_id: UUID
     name: str = Field(min_length=1, max_length=200)
-    sort_key: int = 0
+    sort_key: Optional[int] = None
+
+class ContentCategoryOrderUpdate(BaseModel):
+    category_ids: list[UUID]
 
 class ContentCategoryOut(IdOut):
     pack_id: UUID
