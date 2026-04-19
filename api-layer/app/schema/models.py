@@ -1,5 +1,6 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import (
+    Computed,
     ForeignKey,
     ForeignKeyConstraint,
     Text,
@@ -277,6 +278,9 @@ class ContentCategoryMembership(Base):
 
 class ContentVersion(Base):
     __tablename__ = "content_versions"
+    __table_args__ = (
+        UniqueConstraint("content_id", "version_num", name="content_versions_content_version_unique"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
 
@@ -286,7 +290,29 @@ class ContentVersion(Base):
 
     version_num: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    fields: Mapped[Dict] = mapped_column(JSONB, nullable=False,default=dict)
+    fields: Mapped[Dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: {
+            "schema_version": "ttrpg-content-v1",
+            "content_type": "custom",
+            "traits": [],
+            "requirements": [],
+            "mechanics": [],
+            "scaling": [],
+            "notes": [],
+        },
+    )
+
+    schema_version: Mapped[str] = mapped_column(
+        Text,
+        Computed("COALESCE(NULLIF(fields->>'schema_version', ''), 'ttrpg-content-v1')"),
+    )
+
+    content_type: Mapped[str] = mapped_column(
+        Text,
+        Computed("COALESCE(NULLIF(fields->>'content_type', ''), 'custom')"),
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

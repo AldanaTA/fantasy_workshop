@@ -1,9 +1,9 @@
 import { Visibility } from "../types/visibility";
 import { Status} from "../types/status";
+import { JSONDict,UUID,DateTime } from "../types/misc";
+import { ContentFields } from "../types/contentFields";
 
-export type UUID = string;
-export type DateTime = string; // ISO 8601
-export type JSONDict = Record<string, any>;
+
 
 // ---------- SECURITY ----------
 
@@ -88,8 +88,15 @@ export interface ContentVersion {
 	id: UUID;
 	content_id: UUID;
 	version_num: number;
-	fields: JSONDict;
+	fields: ContentFields;
+	schema_version?: string;
+	content_type?: string;
 	created_at: DateTime;
+}
+
+export interface ContentVersionCreate {
+	fields: ContentFields;
+	version_num?: number;
 }
 
 export interface ContentActiveVersion {
@@ -117,12 +124,18 @@ export interface UserCampaignRole {
 	role: string;
 }
 
+export interface CharacterSheetInstance {
+	template_content_id?: UUID;
+	template_version_num?: number;
+	values: JSONDict;
+}
+
 export interface Character {
 	id: UUID;
 	user_id: UUID;
 	game_id: UUID;
 	name: string;
-	sheet: JSONDict;
+	sheet: CharacterSheetInstance | JSONDict;
 	created_at: DateTime;
 	updated_at: DateTime;
 }

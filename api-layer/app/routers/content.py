@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from uuid import UUID
 from redis.asyncio import Redis
 
@@ -56,6 +56,17 @@ def serialize_content(row: Content) -> dict:
         "summary": row.summary,
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
+    }
+
+def serialize_content_version(row: ContentVersion) -> dict:
+    return {
+        "id": str(row.id),
+        "content_id": str(row.content_id),
+        "version_num": row.version_num,
+        "fields": row.fields,
+        "schema_version": row.schema_version,
+        "content_type": row.content_type,
+        "created_at": row.created_at.isoformat(),
     }
 
 # -------- Content CRUD --------
@@ -291,17 +302,34 @@ async def create_version(
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
-    if payload.content_id != content_id:
+    if payload.content_id is not None and payload.content_id != content_id:
         raise HTTPException(400, "content_id mismatch")
 
-    row = ContentVersion(id=new_id(), **payload.model_dump())
+    content = await db.get(Content, content_id)
+    if not content:
+        raise HTTPException(404, "content not found")
+
+    version_num = payload.version_num
+    if version_num is None:
+        res = await db.execute(
+            select(func.coalesce(func.max(ContentVersion.version_num), 0) + 1)
+            .where(ContentVersion.content_id == content_id)
+        )
+        version_num = res.scalar_one()
+
+    row = ContentVersion(
+        id=new_id(),
+        content_id=content_id,
+        version_num=version_num,
+        fields=payload.fields,
+    )
     db.add(row)
     await db.commit()
     await db.refresh(row)
 
     await cache_index_invalidate(r, idx_versions(content_id))
     await r.delete(key_active(content_id))  # active may be impacted by UI logic
-    return row
+    return serialize_content_version(row)
 
 @router.get("/{content_id}/versions", response_model=list[ContentVersionOut], dependencies=[Depends(require_user)])
 async def list_versions(
@@ -323,16 +351,7 @@ async def list_versions(
     )
     rows = list(res.scalars().all())
 
-    out = [
-        {
-            "id": str(x.id),
-            "content_id": str(x.content_id),
-            "version_num": x.version_num,
-            "fields": x.fields,
-            "created_at": x.created_at.isoformat(),
-        }
-        for x in rows
-    ]
+    out = [serialize_content_version(x) for x in rows]
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
@@ -347,7 +366,7 @@ async def get_version(content_id: UUID, version_num: int, db: AsyncSession = Dep
     row = (await db.execute(q)).scalars().first()
     if not row:
         raise HTTPException(404, "version not found")
-    return row
+    return serialize_content_version(row)
 
 # -------- Active pointer --------
 @router.put("/{content_id}/active", response_model=ContentActiveVersionOut, dependencies=[Depends(require_user)])
@@ -380,7 +399,7 @@ async def upsert_active(
     await r.delete(key_active(content_id))
     return row
 
-@router.get("/{content_id}/active", dependencies=[Depends(require_user)])
+@router.get("/{content_id}/active", response_model=ContentVersionOut, dependencies=[Depends(require_user)])
 async def get_active_version(
     content_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -399,12 +418,6 @@ async def get_active_version(
         if not row:
             raise HTTPException(404, "active version row missing")
 
-        return {
-            "id": str(row.id),
-            "content_id": str(row.content_id),
-            "version_num": row.version_num,
-            "fields": row.fields,
-            "created_at": row.created_at.isoformat(),
-        }
+        return serialize_content_version(row)
 
     return await cache_get_or_set_json(r, key_active(content_id), compute)

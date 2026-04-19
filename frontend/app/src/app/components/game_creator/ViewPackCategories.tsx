@@ -45,6 +45,16 @@ type CategoryContentState = {
   hasLoaded: boolean;
 };
 
+type ContentViewTarget = {
+  content: Content;
+  category: ContentCategory;
+};
+
+type ContentMakerTarget = {
+  category: ContentCategory;
+  content?: Content;
+};
+
 type Props = {
   pack: ContentPack;
   onBackToPacks?: () => void;
@@ -60,8 +70,11 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
   const [activeCategory, setActiveCategory] = useState<ContentCategory | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<ContentCategory | null>(null);
+  const [deleteContentTarget, setDeleteContentTarget] = useState<ContentViewTarget | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isContentDeleteOpen, setIsContentDeleteOpen] = useState(false);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
+  const [contentMakerTarget, setContentMakerTarget] = useState<ContentMakerTarget | null>(null);
   const [categoryContent, setCategoryContent] = useState<Record<string, CategoryContentState>>({});
   const {toastPromise} = useToast();
 
@@ -225,6 +238,42 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
     }
   };
 
+  const handleContentDelete = async () => {
+    if (!deleteContentTarget) return;
+
+    try {
+      await toastPromise(contentApi.delete(deleteContentTarget.content.id), {
+        loading: "Deleting content...",
+        success: "Content deleted successfully.",
+        error: (e) =>
+        (e as any)?.response?.data?.detail ||
+        (e as Error)?.message ||
+        "Failed to delete content."
+      });
+
+      setIsContentDeleteOpen(false);
+      setDeleteContentTarget(null);
+      await loadCategoryContent(deleteContentTarget.category.id, true);
+    } catch (err) {
+    }
+  };
+
+  if (contentMakerTarget) {
+    return (
+      <ContentMaker
+        pack={pack}
+        category={contentMakerTarget.category}
+        content={contentMakerTarget.content}
+        onCancel={() => setContentMakerTarget(null)}
+        onCreated={async () => {
+          setExpandedCategoryId(contentMakerTarget.category.id);
+          await loadCategoryContent(contentMakerTarget.category.id, true);
+          setContentMakerTarget(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
@@ -317,32 +366,59 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
                           <div className="space-y-3">
                             {categoryContent[category.id].items.map((content) => (
                               <div key={content.id} className="rounded-md border border-border p-3">
-                                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
                                     <p className="font-medium">{content.name}</p>
                                     {content.summary ? (
                                       <p className="text-sm text-muted-foreground">{content.summary}</p>
                                     ) : null}
                                   </div>
-                                  <span className="text-xs text-muted-foreground">{category.name}</span>
+                                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      size="sm"
+                                      onClick={() => setContentMakerTarget({ content, category })}
+                                    >
+                                      <Edit3 className="h-4 w-4 sm:mr-2" />
+                                      <span className="truncate">Edit</span>
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => { setDeleteContentTarget({ content, category }); setIsContentDeleteOpen(true); }}
+                                    >
+                                      <Trash2 className="h-4 w-4 sm:mr-2" />
+                                      <span className="truncate">Delete</span>
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             ))}
                           </div>
-                          <ContentMaker
-                            pack={pack}
-                            category={category}
-                            onCreated={() => loadCategoryContent(category.id, true)}
-                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setContentMakerTarget({ category })}
+                            className="w-full min-h-[44px]"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Content
+                          </Button>
                         </div>
                       ) : (
                         <div className="space-y-4">
                           <p className="text-sm text-muted-foreground">No content in this category yet.</p>
-                          <ContentMaker
-                            pack={pack}
-                            category={category}
-                            onCreated={() => loadCategoryContent(category.id, true)}
-                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setContentMakerTarget({ category })}
+                            className="w-full min-h-[44px]"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Content
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -409,6 +485,27 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={isContentDeleteOpen} onOpenChange={setIsContentDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Content?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deleting {deleteContentTarget?.content.name ?? 'this content'} is permanent. This will remove its versions and category memberships.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteContentTarget(null);
+                setIsContentDeleteOpen(false);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleContentDelete}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

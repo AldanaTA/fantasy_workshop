@@ -125,15 +125,48 @@ CREATE TABLE IF NOT EXISTS content_versions (
   content_id  UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
 
   version_num INT NOT NULL,
-  fields      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  fields      JSONB NOT NULL DEFAULT '{
+    "schema_version": "ttrpg-content-v1",
+    "content_type": "custom",
+    "traits": [],
+    "requirements": [],
+    "mechanics": [],
+    "scaling": [],
+    "notes": []
+  }'::jsonb,
+
+  -- Queryable document envelope. These are generated from fields so the JSON
+  -- document remains the portable source of truth for each immutable revision.
+  schema_version TEXT GENERATED ALWAYS AS (
+    COALESCE(NULLIF(fields->>'schema_version', ''), 'ttrpg-content-v1')
+  ) STORED,
+  content_type TEXT GENERATED ALWAYS AS (
+    COALESCE(NULLIF(fields->>'content_type', ''), 'custom')
+  ) STORED,
 
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  CONSTRAINT content_versions_content_version_unique UNIQUE (content_id, version_num)
+  CONSTRAINT content_versions_content_version_unique UNIQUE (content_id, version_num),
+  CONSTRAINT content_versions_fields_object_chk CHECK (jsonb_typeof(fields) = 'object'),
+  CONSTRAINT content_versions_mechanics_array_chk CHECK (
+    NOT (fields ? 'mechanics') OR jsonb_typeof(fields->'mechanics') = 'array'
+  ),
+  CONSTRAINT content_versions_scaling_array_chk CHECK (
+    NOT (fields ? 'scaling') OR jsonb_typeof(fields->'scaling') = 'array'
+  ),
+  CONSTRAINT content_versions_traits_array_chk CHECK (
+    NOT (fields ? 'traits') OR jsonb_typeof(fields->'traits') = 'array'
+  )
 );
 -- Best practice: fast lookups for "latest version" and "specific version"
 CREATE INDEX IF NOT EXISTS content_versions_content_id_version_idx
   ON content_versions(content_id, version_num DESC);
+CREATE INDEX IF NOT EXISTS content_versions_content_type_idx
+  ON content_versions(content_type);
+CREATE INDEX IF NOT EXISTS content_versions_schema_version_idx
+  ON content_versions(schema_version);
+CREATE INDEX IF NOT EXISTS content_versions_fields_gin_idx
+  ON content_versions USING GIN (fields jsonb_path_ops);
 
 -- CONTENT ACTIVE VERSIONS (global default per content)
 CREATE TABLE IF NOT EXISTS content_active_versions (

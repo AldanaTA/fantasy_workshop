@@ -5,15 +5,17 @@ import type {
   ContentCategoryMembershipCreate,
   ContentCreate,
   ContentVersion,
+  ContentVersionCreate,
   ContentActiveVersion,
 } from './models';
+import { validateContentFields } from '../types/contentFields';
 import { getAccessToken } from './authStorage';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT;
 
 const authHeaders = (token?: string) => {
   const t = token ?? getAccessToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
+  return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -29,13 +31,20 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+const validateContentVersionPayload = (payload: ContentVersionCreate) => {
+  const errors = validateContentFields(payload.fields);
+  if (errors.length) {
+    throw new Error(errors.join(' '));
+  }
+};
+
 export const contentApi = {
   create: (payload: ContentCreate, token?: string) =>
     request<Content>('', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
-  get: (contentId: string, token?: string) => request<Content>(`/content/${contentId}`, { method: 'GET', headers: authHeaders(token) }),
+  get: (contentId: string, token?: string) => request<Content>(`/${contentId}`, { method: 'GET', headers: authHeaders(token) }),
 
-  list: (limit = 50, offset = 0, token?: string) => request<Content[]>(`/content?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+  list: (limit = 50, offset = 0, token?: string) => request<Content[]>(`?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
   listByPack: (packId: string, limit = 50, offset = 0, token?: string) =>
     request<Content[]>(`/by-pack/${packId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
@@ -55,10 +64,12 @@ export const contentApi = {
   delete: (contentId: string, token?: string) => request<void>(`/${contentId}`, { method: 'DELETE', headers: authHeaders(token) }),
 
   // Versions
-  createVersion: (contentId: string, payload: Partial<ContentVersion>, token?: string) =>
-    request<ContentVersion>(`/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+  createVersion: (contentId: string, payload: ContentVersionCreate, token?: string) => {
+    validateContentVersionPayload(payload);
+    return request<ContentVersion>(`/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) });
+  },
 
-  listVersions: (contentId: string, token?: string) => request<ContentVersion[]>(`/content/${contentId}/versions`, { method: 'GET', headers: authHeaders(token) }),
+  listVersions: (contentId: string, token?: string) => request<ContentVersion[]>(`/${contentId}/versions`, { method: 'GET', headers: authHeaders(token) }),
 
   getVersion: (contentId: string, versionNum: number, token?: string) =>
     request<ContentVersion>(`/${contentId}/versions/${versionNum}`, { method: 'GET', headers: authHeaders(token) }),
