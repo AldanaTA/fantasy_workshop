@@ -9,8 +9,16 @@ from app.conf import settings
 from app.helpers import require_user, new_id
 from app.helpers_cache import cache_get_json, cache_set_json, cache_get_or_set_json
 from app.helpers_cache_index import cache_index_add, cache_index_invalidate
-from app.schema.models import Content, ContentVersion, ContentActiveVersion
+from app.schema.models import (
+    Content,
+    ContentActiveVersion,
+    ContentCategory,
+    ContentCategoryMembership,
+    ContentVersion,
+)
 from app.schema.schemas import (
+    ContentCategoryMembershipCreate,
+    ContentCategoryMembershipOut,
     ContentCreate, ContentOut,
     ContentVersionCreate, ContentVersionOut,
     ContentActiveVersionUpsert, ContentActiveVersionOut
@@ -40,6 +48,16 @@ def idx_versions(content_id: UUID) -> str:
 def key_versions(content_id: UUID) -> str:
     return f"content:versions:{content_id}"
 
+def serialize_content(row: Content) -> dict:
+    return {
+        "id": str(row.id),
+        "pack_id": str(row.pack_id),
+        "name": row.name,
+        "summary": row.summary,
+        "created_at": row.created_at.isoformat(),
+        "updated_at": row.updated_at.isoformat(),
+    }
+
 # -------- Content CRUD --------
 @router.post("", response_model=ContentOut, dependencies=[Depends(require_user)])
 async def create_content(
@@ -47,22 +65,30 @@ async def create_content(
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
-    row = Content(id=new_id(), **payload.model_dump())
+    category = await db.get(ContentCategory, payload.category_id)
+    if not category or category.pack_id != payload.pack_id:
+        raise HTTPException(400, "category does not belong to the requested pack")
+
+    row = Content(
+        id=new_id(),
+        pack_id=payload.pack_id,
+        name=payload.name,
+        summary=payload.summary,
+    )
     db.add(row)
+    db.add(
+        ContentCategoryMembership(
+            pack_id=payload.pack_id,
+            category_id=payload.category_id,
+            content_id=row.id,
+        )
+    )
     await db.commit()
     await db.refresh(row)
 
     # invalidate pack and category lists for new content
     await cache_index_invalidate(r, idx_pack(row.pack_id))
-    if row.category_id:
-        await cache_index_invalidate(r, idx_category(row.category_id))
-    return row
-
-@router.get("/{content_id}", response_model=ContentOut, dependencies=[Depends(require_user)])
-async def get_content(content_id: UUID, db: AsyncSession = Depends(get_db)):
-    row = await db.get(Content, content_id)
-    if not row:
-        raise HTTPException(404, "content not found")
+    await cache_index_invalidate(r, idx_category(payload.category_id))
     return row
 
 @router.get("", response_model=list[ContentOut], dependencies=[Depends(require_user)])
@@ -96,19 +122,7 @@ async def list_content_by_pack(
     )
     rows = list(res.scalars().all())
 
-    out = [
-        {
-            "id": str(x.id),
-            "pack_id": str(x.pack_id),
-            "category_id": str(x.category_id),
-            "content_type": x.content_type,
-            "name": x.name,
-            "summary": x.summary,
-            "created_at": x.created_at.isoformat(),
-            "updated_at": x.updated_at.isoformat(),
-        }
-        for x in rows
-    ]
+    out = [serialize_content(x) for x in rows]
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
@@ -132,30 +146,81 @@ async def list_content_by_category(
 
     res = await db.execute(
         select(Content)
-        .where(Content.category_id == category_id)
+        .join(
+            ContentCategoryMembership,
+            ContentCategoryMembership.content_id == Content.id,
+        )
+        .where(ContentCategoryMembership.category_id == category_id)
         .order_by(Content.updated_at.desc())
         .limit(limit)
         .offset(offset)
     )
     rows = list(res.scalars().all())
 
-    out = [
-        {
-            "id": str(x.id),
-            "pack_id": str(x.pack_id),
-            "category_id": str(x.category_id),
-            "content_type": x.content_type,
-            "name": x.name,
-            "summary": x.summary,
-            "created_at": x.created_at.isoformat(),
-            "updated_at": x.updated_at.isoformat(),
-        }
-        for x in rows
-    ]
+    out = [serialize_content(x) for x in rows]
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
     return out
+
+@router.post("/category-memberships", response_model=ContentCategoryMembershipOut, dependencies=[Depends(require_user)])
+async def add_content_to_category(
+    payload: ContentCategoryMembershipCreate,
+    db: AsyncSession = Depends(get_db),
+    r: Redis = Depends(get_redis),
+):
+    content = await db.get(Content, payload.content_id)
+    category = await db.get(ContentCategory, payload.category_id)
+
+    if not content:
+        raise HTTPException(404, "content not found")
+    if not category:
+        raise HTTPException(404, "category not found")
+    if content.pack_id != payload.pack_id or category.pack_id != payload.pack_id:
+        raise HTTPException(400, "content and category must belong to the requested pack")
+
+    existing = await db.get(
+        ContentCategoryMembership,
+        (payload.category_id, payload.content_id),
+    )
+    if existing:
+        return existing
+
+    row = ContentCategoryMembership(
+        pack_id=payload.pack_id,
+        category_id=payload.category_id,
+        content_id=payload.content_id,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+
+    await cache_index_invalidate(r, idx_category(payload.category_id))
+    await cache_index_invalidate(r, idx_pack(payload.pack_id))
+    return row
+
+@router.delete("/category-memberships/{category_id}/{content_id}", status_code=204, dependencies=[Depends(require_user)])
+async def remove_content_from_category(
+    category_id: UUID,
+    content_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    r: Redis = Depends(get_redis),
+):
+    row = await db.get(ContentCategoryMembership, (category_id, content_id))
+    if row:
+        pack_id = row.pack_id
+        await db.delete(row)
+        await db.commit()
+
+        await cache_index_invalidate(r, idx_category(category_id))
+        await cache_index_invalidate(r, idx_pack(pack_id))
+
+@router.get("/{content_id}", response_model=ContentOut, dependencies=[Depends(require_user)])
+async def get_content(content_id: UUID, db: AsyncSession = Depends(get_db)):
+    row = await db.get(Content, content_id)
+    if not row:
+        raise HTTPException(404, "content not found")
+    return row
 
 @router.patch("/{content_id}", response_model=ContentOut, dependencies=[Depends(require_user)])
 async def patch_content(
@@ -168,11 +233,10 @@ async def patch_content(
     if not row:
         raise HTTPException(404, "content not found")
 
-    for k in ("id", "created_at", "updated_at"):
+    for k in ("id", "pack_id", "category_id", "created_at", "updated_at"):
         patch.pop(k, None)
 
     old_pack = row.pack_id
-    old_category = row.category_id
 
     for k, v in patch.items():
         if hasattr(row, k):
@@ -186,11 +250,12 @@ async def patch_content(
     if row.pack_id != old_pack:
         await cache_index_invalidate(r, idx_pack(row.pack_id))
 
-    # invalidate category cache when the category changes or content is updated
-    if old_category:
-        await cache_index_invalidate(r, idx_category(old_category))
-    if row.category_id and row.category_id != old_category:
-        await cache_index_invalidate(r, idx_category(row.category_id))
+    res = await db.execute(
+        select(ContentCategoryMembership.category_id)
+        .where(ContentCategoryMembership.content_id == content_id)
+    )
+    for category_id in res.scalars().all():
+        await cache_index_invalidate(r, idx_category(category_id))
 
     return row
 
@@ -203,12 +268,17 @@ async def delete_content(
     row = await db.get(Content, content_id)
     if row:
         pack_id = row.pack_id
-        category_id = row.category_id
+        res = await db.execute(
+            select(ContentCategoryMembership.category_id)
+            .where(ContentCategoryMembership.content_id == content_id)
+        )
+        category_ids = list(res.scalars().all())
+
         await db.delete(row)
         await db.commit()
 
         await cache_index_invalidate(r, idx_pack(pack_id))
-        if category_id:
+        for category_id in category_ids:
             await cache_index_invalidate(r, idx_category(category_id))
         await cache_index_invalidate(r, idx_versions(content_id))
         await r.delete(key_active(content_id))

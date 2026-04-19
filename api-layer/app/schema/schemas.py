@@ -81,18 +81,26 @@ class ContentCategoryOut(IdOut):
 class ContentCreate(BaseModel):
     pack_id: UUID
     category_id: UUID
-    content_type: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=200)
     summary: Optional[str] = None
 
 class ContentOut(IdOut):
     pack_id: UUID
-    category_id: UUID
-    content_type: str
     name: str
     summary: Optional[str]
     created_at: datetime
     updated_at: datetime
+
+class ContentCategoryMembershipCreate(BaseModel):
+    pack_id: UUID
+    category_id: UUID
+    content_id: UUID
+
+class ContentCategoryMembershipOut(BaseModel):
+    pack_id: UUID
+    category_id: UUID
+    content_id: UUID
+    created_at: datetime
 
 # Content versions
 class ContentVersionCreate(BaseModel):

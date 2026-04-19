@@ -58,12 +58,30 @@ export interface ContentCategory {
 export interface Content {
 	id: UUID;
 	pack_id: UUID;
-	category_id: UUID;
-	content_type: string;
 	name: string;
 	summary?: string | null;
 	created_at: DateTime;
 	updated_at: DateTime;
+}
+
+export interface ContentCreate {
+	pack_id: UUID;
+	category_id: UUID;
+	name: string;
+	summary?: string | null;
+}
+
+export interface ContentCategoryMembership {
+	pack_id: UUID;
+	category_id: UUID;
+	content_id: UUID;
+	created_at: DateTime;
+}
+
+export interface ContentCategoryMembershipCreate {
+	pack_id: UUID;
+	category_id: UUID;
+	content_id: UUID;
 }
 
 export interface ContentVersion {

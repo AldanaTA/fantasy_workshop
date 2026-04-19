@@ -210,20 +210,22 @@ export function ViewGamePacks({ game, onBack }: Props) {
               This is where you can view the game content packs.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
           <Button onClick={onBack}
             
             className="min-h-[44px]"
           >
-            <CircleArrowLeft className="h-4 w-4" />
-            Back to Game List
+            <CircleArrowLeft className="h-4 w-4 shrink-0" />
+            <span className="truncate sm:hidden">Dashboard</span>
+            <span className="hidden sm:inline">Back to Dashboard</span>
           </Button>                                                                                                                   
           <Button
             onClick={openCreateDialog}
             className="min-h-[44px]"
           >
-            <Plus className="h-4 w-4" />
-            Make Content Pack
+            <Plus className="h-4 w-4 shrink-0" />
+            <span className="truncate sm:hidden">Pack</span>
+            <span className="hidden sm:inline">Content Pack</span>
           </Button>
           </div>
         </div>

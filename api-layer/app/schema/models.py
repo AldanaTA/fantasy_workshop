@@ -1,5 +1,13 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import ForeignKey, Text, Integer, DateTime, Enum
+from sqlalchemy import (
+    ForeignKey,
+    ForeignKeyConstraint,
+    Text,
+    Integer,
+    DateTime,
+    Enum,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY, INET
 from sqlalchemy.sql import func
 
@@ -185,6 +193,9 @@ class ContentPack(Base):
 
 class ContentCategory(Base):
     __tablename__ = "content_categories"
+    __table_args__ = (
+        UniqueConstraint("id", "pack_id", name="content_categories_id_pack_uq"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
 
@@ -209,6 +220,9 @@ class ContentCategory(Base):
 
 class Content(Base):
     __tablename__ = "content"
+    __table_args__ = (
+        UniqueConstraint("id", "pack_id", name="content_id_pack_uq"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
 
@@ -217,10 +231,6 @@ class Content(Base):
         ForeignKey("content_packs.id", ondelete="CASCADE"),
         nullable=False,
     )
-
-    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-
-    content_type: Mapped[str] = mapped_column(Text, nullable=False)
 
     name: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -231,6 +241,36 @@ class Content(Base):
     )
 
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ContentCategoryMembership(Base):
+    __tablename__ = "content_category_memberships"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["category_id", "pack_id"],
+            ["content_categories.id", "content_categories.pack_id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["content_id", "pack_id"],
+            ["content.id", "content.pack_id"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    pack_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True
+    )
+
+    content_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 

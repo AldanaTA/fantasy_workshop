@@ -1,6 +1,9 @@
 import { API_CONFIG } from './apiConfig';
 import type {
   Content,
+  ContentCategoryMembership,
+  ContentCategoryMembershipCreate,
+  ContentCreate,
   ContentVersion,
   ContentActiveVersion,
 } from './models';
@@ -27,7 +30,7 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 export const contentApi = {
-  create: (payload: Partial<Content>, token?: string) =>
+  create: (payload: ContentCreate, token?: string) =>
     request<Content>('', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
   get: (contentId: string, token?: string) => request<Content>(`/content/${contentId}`, { method: 'GET', headers: authHeaders(token) }),
@@ -39,6 +42,12 @@ export const contentApi = {
 
   listByCategory: (categoryId: string, limit = 50, offset = 0, token?: string) =>
     request<Content[]>(`/by-category/${categoryId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+
+  addToCategory: (payload: ContentCategoryMembershipCreate, token?: string) =>
+    request<ContentCategoryMembership>('/category-memberships', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+
+  removeFromCategory: (categoryId: string, contentId: string, token?: string) =>
+    request<void>(`/category-memberships/${categoryId}/${contentId}`, { method: 'DELETE', headers: authHeaders(token) }),
 
   patch: (contentId: string, patch: Partial<Content>, token?: string) =>
     request<Content>(`/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),

@@ -84,22 +84,40 @@ CREATE INDEX IF NOT EXISTS content_categories_pack_id_idx ON content_categories(
 CREATE TABLE IF NOT EXISTS content (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pack_id      UUID NOT NULL REFERENCES content_packs(id) ON DELETE CASCADE,
-  category_id  UUID NOT NULL,
-  content_type TEXT NOT NULL,
   name         TEXT NOT NULL,
   summary      TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  CONSTRAINT content_category_same_pack_fk
-    FOREIGN KEY (category_id, pack_id)
-    REFERENCES content_categories(id, pack_id)
-    ON DELETE RESTRICT
+  CONSTRAINT content_id_pack_uq UNIQUE (id, pack_id)
 );
 
 CREATE INDEX IF NOT EXISTS content_pack_id_idx ON content(pack_id);
-CREATE INDEX IF NOT EXISTS content_category_id_idx ON content(category_id);
-CREATE INDEX IF NOT EXISTS content_type_idx ON content(content_type);
+
+-- CONTENT CATEGORY MEMBERSHIPS
+-- A content item may appear in many categories, but only once per category.
+-- pack_id keeps category/content links inside the same content pack.
+CREATE TABLE IF NOT EXISTS content_category_memberships (
+  pack_id     UUID NOT NULL,
+  category_id UUID NOT NULL,
+  content_id  UUID NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT content_category_memberships_pk PRIMARY KEY (category_id, content_id),
+  CONSTRAINT content_category_memberships_category_pack_fk
+    FOREIGN KEY (category_id, pack_id)
+    REFERENCES content_categories(id, pack_id)
+    ON DELETE CASCADE,
+  CONSTRAINT content_category_memberships_content_pack_fk
+    FOREIGN KEY (content_id, pack_id)
+    REFERENCES content(id, pack_id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS content_category_memberships_pack_id_idx
+  ON content_category_memberships(pack_id);
+CREATE INDEX IF NOT EXISTS content_category_memberships_content_id_idx
+  ON content_category_memberships(content_id);
 
 -- CONTENT VERSIONS (immutable revisions)
 CREATE TABLE IF NOT EXISTS content_versions (

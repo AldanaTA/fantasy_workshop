@@ -1,15 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Textarea } from '../ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
 import {
@@ -30,13 +22,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Eye, Edit3, Plus, CircleArrowLeft,Trash2,} from 'lucide-react';
-import { ContentCategory, ContentPack} from '../../api/models';
+import { ChevronDown, ChevronUp, Edit3, Plus, CircleArrowLeft, Trash2 } from 'lucide-react';
+import { Content, ContentCategory, ContentPack } from '../../api/models';
 import {contentCategoriesApi} from '../../api/contentCategoriesApi';
-import { get_userId } from '../../api/authStorage';
-import { VISIBILITY,Visibility } from '../../types/visibility';
-import { STATUS, Status } from '../../types/status';
+import { contentApi } from '../../api/contentApi';
 import { useToast } from '../ui/toastProvider';
+import { ContentMaker } from './contentMaker';
 
 interface FormState {
     name: string;
@@ -45,6 +36,13 @@ interface FormState {
 const emptyForm: FormState = {
   name: '',
   sort_key: undefined,
+};
+
+type CategoryContentState = {
+  items: Content[];
+  isLoading: boolean;
+  error: string | null;
+  hasLoaded: boolean;
 };
 
 type Props = {
@@ -61,9 +59,10 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
   const [activeCategory, setActiveCategory] = useState<ContentCategory | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [viewTarget, setViewTarget] = useState<ContentCategory | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContentCategory | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
+  const [categoryContent, setCategoryContent] = useState<Record<string, CategoryContentState>>({});
   const {toastPromise} = useToast();
 
   const loadPacks = async () => {
@@ -79,6 +78,54 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadCategoryContent = async (categoryId: string, force = false) => {
+    const existing = categoryContent[categoryId];
+    if (existing?.hasLoaded && !force) return;
+
+    setCategoryContent((prev) => ({
+      ...prev,
+      [categoryId]: {
+        items: prev[categoryId]?.items ?? [],
+        isLoading: true,
+        error: null,
+        hasLoaded: prev[categoryId]?.hasLoaded ?? false,
+      },
+    }));
+
+    try {
+      const items = await contentApi.listByCategory(categoryId, 100, 0);
+      setCategoryContent((prev) => ({
+        ...prev,
+        [categoryId]: {
+          items,
+          isLoading: false,
+          error: null,
+          hasLoaded: true,
+        },
+      }));
+    } catch (err) {
+      setCategoryContent((prev) => ({
+        ...prev,
+        [categoryId]: {
+          items: prev[categoryId]?.items ?? [],
+          isLoading: false,
+          error: (err as Error)?.message || 'Unable to load content.',
+          hasLoaded: true,
+        },
+      }));
+    }
+  };
+
+  const toggleCategory = async (categoryId: string) => {
+    if (expandedCategoryId === categoryId) {
+      setExpandedCategoryId(null);
+      return;
+    }
+
+    setExpandedCategoryId(categoryId);
+    await loadCategoryContent(categoryId);
   };
 
   useEffect(() => {
@@ -164,6 +211,12 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
 
       setIsDeleteOpen(false);
       setDeleteTarget(null);
+      setExpandedCategoryId((prev) => (prev === deleteTarget.id ? null : prev));
+      setCategoryContent((prev) => {
+        const next = { ...prev };
+        delete next[deleteTarget.id];
+        return next;
+      });
       await loadPacks();
 
 
@@ -171,6 +224,7 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
   
     }
   };
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
@@ -178,36 +232,29 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
           <div>
             <h2 className="text-xl font-semibold">View content categories in {pack.pack_name}</h2>
             <p className="text-sm text-muted-foreground">
-              This is where you can view the game content packs.
+              This is where you can view and manage this pack's content categories.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-          <Button onClick={onBackToPacks}
-            
-            className="min-h-[44px]"
-          >
-            <CircleArrowLeft className="h-4 w-4" />
-            Back to Pack List
-          </Button> 
-            <Button onClick={onGoToDashboard}
-            
-            className="min-h-[44px]"
-          >
-            <CircleArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Button>                                                                                                                  
-          <Button
-            onClick={openCreateDialog}
-            className="min-h-[44px]"
-          >
-            <Plus className="h-4 w-4" />
-            Make Content Pack
-          </Button>
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-nowrap sm:items-center">
+            <Button onClick={onBackToPacks} className="min-h-[44px] min-w-0 px-2 sm:shrink-0 sm:px-4">
+              <CircleArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate sm:hidden">Packs</span>
+              <span className="hidden sm:inline">Pack List</span>
+            </Button>
+            <Button onClick={onGoToDashboard} className="min-h-[44px] min-w-0 px-2 sm:shrink-0 sm:px-4">
+              <CircleArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate">Dashboard</span>
+            </Button>
+            <Button onClick={openCreateDialog} className="min-h-[44px] min-w-0 px-2 sm:shrink-0 sm:px-4">
+              <Plus className="h-4 w-4 shrink-0" />
+              <span className="truncate sm:hidden">Category</span>
+              <span className="hidden sm:inline">Content Category</span>
+            </Button>
           </div>
         </div>
         <Separator />
         {isloading ? (
-          <p>Loading content packs...</p>
+          <p>Loading content categories...</p>
         ) : error ? (
           <p className="text-destructive">{error}</p>
         ) : contentCategories.length === 0 ? (
@@ -220,19 +267,86 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
                   <CardTitle>{category.name}</CardTitle>
                   <CardDescription>{category.sort_key}</CardDescription>
                 </CardHeader>
-                <CardContent className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setViewTarget(category)}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    View
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => openEditDialog(category)}>
-                    <Edit3 className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button variant="destructive" size="sm" onClick={() => {setDeleteTarget(category); setIsDeleteOpen(true);}}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleCategory(category.id)}
+                      className="min-w-0 px-2 sm:px-3"
+                    >
+                      {expandedCategoryId === category.id ? (
+                        <ChevronUp className="h-4 w-4 shrink-0 sm:mr-2" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 shrink-0 sm:mr-2" />
+                      )}
+                      <span className="truncate sm:hidden">
+                        {expandedCategoryId === category.id ? 'Hide' : 'View'}
+                      </span>
+                      <span className="hidden sm:inline">
+                        {expandedCategoryId === category.id ? 'Hide Content' : 'View Content'}
+                      </span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openEditDialog(category)}
+                      className="min-w-0 px-2 sm:px-3"
+                    >
+                      <Edit3 className="h-4 w-4 shrink-0 sm:mr-2" />
+                      <span className="truncate">Edit</span>
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {setDeleteTarget(category); setIsDeleteOpen(true);}}
+                      className="min-w-0 px-2 sm:px-3"
+                    >
+                      <Trash2 className="h-4 w-4 shrink-0 sm:mr-2" />
+                      <span className="truncate">Delete</span>
+                    </Button>
+                  </div>
+                  {expandedCategoryId === category.id ? (
+                    <div className="rounded-md border border-border p-3">
+                      {categoryContent[category.id]?.isLoading ? (
+                        <p className="text-sm text-muted-foreground">Loading content...</p>
+                      ) : categoryContent[category.id]?.error ? (
+                        <p className="text-sm text-destructive">{categoryContent[category.id]?.error}</p>
+                      ) : categoryContent[category.id]?.items.length ? (
+                        <div className="space-y-4">
+                          <div className="space-y-3">
+                            {categoryContent[category.id].items.map((content) => (
+                              <div key={content.id} className="rounded-md border border-border p-3">
+                                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
+                                    <p className="font-medium">{content.name}</p>
+                                    {content.summary ? (
+                                      <p className="text-sm text-muted-foreground">{content.summary}</p>
+                                    ) : null}
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">{category.name}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <ContentMaker
+                            pack={pack}
+                            category={category}
+                            onCreated={() => loadCategoryContent(category.id, true)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <p className="text-sm text-muted-foreground">No content in this category yet.</p>
+                          <ContentMaker
+                            pack={pack}
+                            category={category}
+                            onCreated={() => loadCategoryContent(category.id, true)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             ))}
