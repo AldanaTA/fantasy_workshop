@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Eye, Edit3, Plus, CircleArrowLeft,Trash2, View,} from 'lucide-react';
+import { BookOpen, Eye, Edit3, Plus, CircleArrowLeft,Trash2, View,} from 'lucide-react';
 import { ContentPack, Game } from '../../api/models';
 import {contentPacksApi} from '../../api/contentPacksApi';
 import { get_userId } from '../../api/authStorage';
@@ -38,6 +38,7 @@ import { VISIBILITY,Visibility } from '../../types/visibility';
 import { STATUS, Status } from '../../types/status';
 import { useToast } from '../ui/toastProvider';
 import { ViewPackCategories } from './ViewPackCategories';
+import { GameRulesRenderer } from '../content/GameRulesRenderer';
 
 interface FormState {
   pack_name: string;
@@ -66,6 +67,8 @@ export function ViewGamePacks({ game, onBack }: Props) {
   const [activePack, setActivePack] = useState<ContentPack | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [viewTarget, setViewTarget] = useState<ContentPack | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<ContentPack | null>(null);
+  const [previewPackIds, setPreviewPackIds] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<ContentPack | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement | null>(null);
@@ -200,20 +203,59 @@ export function ViewGamePacks({ game, onBack }: Props) {
       />
     );
   }
+
+  if (previewTarget) {
+    return (
+      <div className="min-w-0 space-y-6">
+        <div className="grid min-w-0 gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="break-words text-xl font-semibold">Preview {game.game_name} rules</h2>
+              <p className="text-sm text-muted-foreground">
+                Start with {previewTarget.pack_name}, then include any other pack sources you want to compare.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPreviewTarget(null);
+                setPreviewPackIds([]);
+              }}
+              className="min-h-[44px] min-w-0 sm:w-auto"
+            >
+              <CircleArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate">Back to Packs</span>
+            </Button>
+          </div>
+          <Separator />
+          <GameRulesRenderer
+            gameId={game.id}
+            selectedPackIds={previewPackIds}
+            onSelectedPackIdsChange={setPreviewPackIds}
+            mode="full"
+            visibility="gm"
+            packMode="multi"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
+    <div className="min-w-0 space-y-6">
+      <div className="grid min-w-0 gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">View {game.game_name} content packs</h2>
+          <div className="min-w-0">
+            <h2 className="break-words text-xl font-semibold">View {game.game_name} content packs</h2>
             <p className="text-sm text-muted-foreground">
               This is where you can view the game content packs.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
           <Button onClick={onBack}
             
-            className="min-h-[44px]"
+            className="min-h-[44px] min-w-0 px-2 sm:px-4"
           >
             <CircleArrowLeft className="h-4 w-4 shrink-0" />
             <span className="truncate sm:hidden">Dashboard</span>
@@ -221,7 +263,7 @@ export function ViewGamePacks({ game, onBack }: Props) {
           </Button>                                                                                                                   
           <Button
             onClick={openCreateDialog}
-            className="min-h-[44px]"
+            className="min-h-[44px] min-w-0 px-2 sm:px-4"
           >
             <Plus className="h-4 w-4 shrink-0" />
             <span className="truncate sm:hidden">Pack</span>
@@ -239,23 +281,35 @@ export function ViewGamePacks({ game, onBack }: Props) {
         ) : (
           <div className="space-y-4">
             {contentpacks.map((pack) => (
-              <Card key={pack.id} className="border">
-                <CardHeader>
-                  <CardTitle>{pack.pack_name}</CardTitle>
-                  <CardDescription>{pack.description}</CardDescription>
+              <Card key={pack.id} className="min-w-0 border">
+                <CardHeader className="min-w-0">
+                  <CardTitle className="break-words">{pack.pack_name}</CardTitle>
+                  <CardDescription className="break-words">{pack.description}</CardDescription>
                 </CardHeader>
-                <CardContent className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setViewTarget(pack)}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    View
+                <CardContent className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                  <Button variant="outline" size="sm" onClick={() => setViewTarget(pack)} className="min-w-0 px-2 sm:px-3">
+                    <Eye className="h-4 w-4 shrink-0 sm:mr-2" />
+                    <span className="truncate">Categories</span>
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={() => openEditDialog(pack)}>
-                    <Edit3 className="mr-2 h-4 w-4" />
-                    Edit
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="min-w-0 px-2 sm:px-3"
+                    onClick={() => {
+                      setPreviewTarget(pack);
+                      setPreviewPackIds([pack.id]);
+                    }}
+                  >
+                    <BookOpen className="h-4 w-4 shrink-0 sm:mr-2" />
+                    <span className="truncate">Preview</span>
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => {setDeleteTarget(pack); setIsDeleteOpen(true);}}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
+                  <Button variant="secondary" size="sm" onClick={() => openEditDialog(pack)} className="min-w-0 px-2 sm:px-3">
+                    <Edit3 className="h-4 w-4 shrink-0 sm:mr-2" />
+                    <span className="truncate">Edit</span>
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => {setDeleteTarget(pack); setIsDeleteOpen(true);}} className="min-w-0 px-2 sm:px-3">
+                    <Trash2 className="h-4 w-4 shrink-0 sm:mr-2" />
+                    <span className="truncate">Delete</span>
                   </Button>
                 </CardContent>
               </Card>

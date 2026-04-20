@@ -4,7 +4,6 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Separator } from '../ui/separator';
 import { cn } from '../ui/utils';
 import {
   CharacterSheetTemplateField,
@@ -128,49 +127,62 @@ function TtrpgContentRender({
   }
 
   const visibleEffects = fields.mechanics.filter((effect) => !isHiddenEffect(effect, visibility));
-  const compactEffects = visibleEffects
-    .filter((effect) => ['damage', 'healing', 'saving_throw', 'attack', 'condition', 'resource'].includes(effect.type))
-    .slice(0, 4);
+  const importantEffects = getImportantEffects(visibleEffects);
+  const compactEffects = importantEffects.slice(0, 5);
   const title = fields.title || contentName || 'Untitled content';
   const shortText = fields.render?.short_text || summary;
 
-  return (
-    <Card className={cn('gap-4 rounded-md border-border bg-background shadow-none', className)}>
-      <CardHeader className="gap-3 px-4 pt-4">
-        <ContentHeader
-          title={title}
-          subtitle={fields.subtitle}
-          summary={mode === 'compact' ? shortText : summary}
-          shortText={mode === 'full' ? fields.render?.short_text : undefined}
-          contentType={fields.content_type}
-          tags={fields.tags}
-          system={fields.system}
-        />
-      </CardHeader>
-      <CardContent className="space-y-4 px-4 pb-4">
-        {mode === 'compact' ? (
+  if (mode === 'compact') {
+    return (
+      <Card className={cn('gap-3 rounded-md border-border bg-background shadow-none', className)}>
+        <CardHeader className="gap-3 px-4 pt-4">
+          <ContentHeader
+            title={title}
+            subtitle={fields.subtitle}
+            summary={shortText}
+            contentType={fields.content_type}
+            tags={fields.tags}
+            system={fields.system}
+            compact
+          />
+        </CardHeader>
+        <CardContent className="space-y-3 px-4 pb-4">
+          <CompactFacts traits={fields.traits} requirements={fields.requirements} targeting={fields.targeting} />
           <CompactMechanics
             effects={compactEffects}
-            remainingCount={Math.max(visibleEffects.length - compactEffects.length, 0)}
+            remainingCount={Math.max(importantEffects.length - compactEffects.length, 0)}
             contentType={fields.content_type}
             onRoll={onRoll}
           />
-        ) : (
-          <>
-            {fields.traits?.length ? <TraitsList traits={fields.traits} /> : null}
-            {fields.requirements?.length ? <RequirementsList requirements={fields.requirements} onRoll={onRoll} /> : null}
-            {fields.targeting ? <TargetingBlock targeting={fields.targeting} onRoll={onRoll} /> : null}
-            {visibleEffects.length ? (
-              <SectionBlock title="Mechanics">
-                <MechanicsList effects={visibleEffects} contentType={fields.content_type} onRoll={onRoll} />
-              </SectionBlock>
-            ) : null}
-            {fields.scaling?.length ? <ScalingList scaling={fields.scaling} contentType={fields.content_type} onRoll={onRoll} /> : null}
-            <NotesList notes={fields.notes} visibility={visibility} />
-          </>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <article className={cn('space-y-6 rounded-md border border-border bg-background px-5 py-5 shadow-none sm:px-7', className)}>
+      <DocumentHeader
+        title={title}
+        subtitle={fields.subtitle}
+        summary={summary}
+        shortText={fields.render?.short_text}
+        contentType={fields.content_type}
+        tags={fields.tags}
+        system={fields.system}
+      />
+      <div className="space-y-6 text-sm leading-7">
+        {fields.traits?.length ? <TraitsList traits={fields.traits} /> : null}
+        {fields.requirements?.length ? <RequirementsList requirements={fields.requirements} onRoll={onRoll} /> : null}
+        {fields.targeting ? <TargetingBlock targeting={fields.targeting} onRoll={onRoll} /> : null}
+        {visibleEffects.length ? (
+          <SectionBlock title="Mechanics">
+            <MechanicsList effects={visibleEffects} contentType={fields.content_type} onRoll={onRoll} />
+          </SectionBlock>
+        ) : null}
+        {fields.scaling?.length ? <ScalingList scaling={fields.scaling} contentType={fields.content_type} onRoll={onRoll} /> : null}
+        <NotesList notes={fields.notes} visibility={visibility} />
+      </div>
+    </article>
   );
 }
 
@@ -198,53 +210,67 @@ function CharacterSheetTemplateRender({
   const title = fields.title || contentName || 'Untitled sheet template';
   const shortText = fields.render?.short_text || summary;
 
-  return (
-    <Card className={cn('gap-4 rounded-md border-border bg-background shadow-none', className)}>
-      <CardHeader className="gap-3 px-4 pt-4">
-        <ContentHeader
-          title={title}
-          subtitle={fields.subtitle}
-          summary={mode === 'compact' ? shortText : summary}
-          shortText={mode === 'full' ? fields.render?.short_text : undefined}
-          contentType="character_sheet_template"
-          tags={fields.tags}
-          system={fields.system}
-        />
-      </CardHeader>
-      <CardContent className="space-y-4 px-4 pb-4">
-        {mode === 'compact' ? (
-          <div className="space-y-3">
-            <MetadataRow label="Sections" value={String(sections.length)} />
+  if (mode === 'compact') {
+    return (
+      <Card className={cn('gap-3 rounded-md border-border bg-background shadow-none', className)}>
+        <CardHeader className="gap-3 px-4 pt-4">
+          <ContentHeader
+            title={title}
+            subtitle={fields.subtitle}
+            summary={shortText}
+            contentType="character_sheet_template"
+            tags={fields.tags}
+            system={fields.system}
+            compact
+          />
+        </CardHeader>
+        <CardContent className="space-y-3 px-4 pb-4">
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Badge variant="outline">{sections.length} sections</Badge>
+            <Badge variant="outline">{sections.reduce((total, section) => total + section.fields.length, 0)} fields</Badge>
             {sections.slice(0, 4).map((section) => (
-              <Badge key={section.id} variant="outline">{section.label}</Badge>
+              <Badge key={section.id} variant="secondary">{section.label}</Badge>
             ))}
-            {sections.length > 4 ? (
-              <p className="text-xs text-muted-foreground">+{sections.length - 4} more sections</p>
-            ) : null}
           </div>
-        ) : (
-          <>
-            <SectionBlock title="Sheet Sections">
-              <div className="space-y-3">
-                {sections.map((section) => (
-                  <SheetSectionPreview key={section.id} section={section} visibility={visibility} onRoll={onRoll} />
-                ))}
-              </div>
-            </SectionBlock>
-            {fields.mechanics?.length ? (
-              <SectionBlock title="Template Mechanics">
-                <MechanicsList
-                  effects={fields.mechanics.filter((effect) => !isHiddenEffect(effect, visibility))}
-                  contentType="character_sheet_template"
-                  onRoll={onRoll}
-                />
-              </SectionBlock>
-            ) : null}
-            <NotesList notes={fields.notes} visibility={visibility} />
-          </>
-        )}
-      </CardContent>
-    </Card>
+          {sections.length > 4 ? (
+            <p className="text-xs text-muted-foreground">+{sections.length - 4} more sections</p>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <article className={cn('space-y-6 rounded-md border border-border bg-background px-5 py-5 shadow-none sm:px-7', className)}>
+      <DocumentHeader
+        title={title}
+        subtitle={fields.subtitle}
+        summary={summary}
+        shortText={fields.render?.short_text}
+        contentType="character_sheet_template"
+        tags={fields.tags}
+        system={fields.system}
+      />
+      <div className="space-y-6 text-sm leading-7">
+        <SectionBlock title="Sheet Sections">
+          <div className="space-y-5">
+            {sections.map((section) => (
+              <SheetSectionPreview key={section.id} section={section} visibility={visibility} onRoll={onRoll} />
+            ))}
+          </div>
+        </SectionBlock>
+        {fields.mechanics?.length ? (
+          <SectionBlock title="Template Mechanics">
+            <MechanicsList
+              effects={fields.mechanics.filter((effect) => !isHiddenEffect(effect, visibility))}
+              contentType="character_sheet_template"
+              onRoll={onRoll}
+            />
+          </SectionBlock>
+        ) : null}
+        <NotesList notes={fields.notes} visibility={visibility} />
+      </div>
+    </article>
   );
 }
 
@@ -296,6 +322,44 @@ function ContentHeader({
   contentType,
   tags,
   system,
+  compact = false,
+}: {
+  title: string;
+  subtitle?: string;
+  summary?: string | null;
+  shortText?: string;
+  contentType?: string;
+  tags?: string[];
+  system?: { id: string; version?: string };
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn('space-y-3', compact && 'space-y-2')}>
+      <div className="space-y-1">
+        <CardTitle className={cn('font-semibold leading-tight', compact ? 'text-base' : 'text-lg')}>{title}</CardTitle>
+        {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
+      </div>
+      {summary ? <p className={cn('text-sm', compact && 'line-clamp-2')}>{summary}</p> : null}
+      {shortText && shortText !== summary ? <p className="text-sm text-muted-foreground">{shortText}</p> : null}
+      <div className="flex flex-wrap gap-2">
+        {contentType ? <Badge variant="secondary">{formatLabel(contentType)}</Badge> : null}
+        {system?.id ? (
+          <Badge variant="outline">{system.version ? `${system.id} ${system.version}` : system.id}</Badge>
+        ) : null}
+        <TagList tags={tags} />
+      </div>
+    </div>
+  );
+}
+
+function DocumentHeader({
+  title,
+  subtitle,
+  summary,
+  shortText,
+  contentType,
+  tags,
+  system,
 }: {
   title: string;
   subtitle?: string;
@@ -306,21 +370,25 @@ function ContentHeader({
   system?: { id: string; version?: string };
 }) {
   return (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <CardTitle className="text-lg font-semibold leading-tight">{title}</CardTitle>
-        {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
+    <header className="space-y-4 border-b border-border pb-5">
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          {formatLabel(contentType)}
+          {system?.id ? ` / ${system.version ? `${system.id} ${system.version}` : system.id}` : null}
+        </p>
+        <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">{title}</h1>
+        {subtitle ? <p className="text-base italic text-muted-foreground">{subtitle}</p> : null}
       </div>
-      {summary ? <p className="text-sm">{summary}</p> : null}
-      {shortText && shortText !== summary ? <p className="text-sm text-muted-foreground">{shortText}</p> : null}
-      <div className="flex flex-wrap gap-2">
-        {contentType ? <Badge variant="secondary">{formatLabel(contentType)}</Badge> : null}
-        {system?.id ? (
-          <Badge variant="outline">{system.version ? `${system.id} ${system.version}` : system.id}</Badge>
-        ) : null}
-        <TagList tags={tags} />
-      </div>
-    </div>
+      {summary ? <p className="max-w-3xl text-sm leading-7">{summary}</p> : null}
+      {shortText && shortText !== summary ? (
+        <p className="max-w-3xl border-l-2 border-border pl-3 text-sm leading-7 text-muted-foreground">{shortText}</p>
+      ) : null}
+      {tags?.length ? (
+        <div className="flex flex-wrap gap-2">
+          <TagList tags={tags} />
+        </div>
+      ) : null}
+    </header>
   );
 }
 
@@ -338,10 +406,7 @@ function TagList({ tags }: { tags?: string[] }) {
 function SectionBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-3">
-      <div className="flex items-center gap-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <Separator className="flex-1" />
-      </div>
+      <h2 className="border-b border-border pb-1 text-base font-semibold">{title}</h2>
       {children}
     </section>
   );
@@ -350,9 +415,35 @@ function SectionBlock({ title, children }: { title: string; children: ReactNode 
 function MetadataRow({ label, value }: { label: string; value?: ReactNode }) {
   if (value === undefined || value === null || value === '') return null;
   return (
-    <div className="grid gap-1 rounded-md border border-border bg-muted/20 p-3 sm:grid-cols-[140px_1fr]">
-      <dt className="text-xs font-medium uppercase text-muted-foreground">{label}</dt>
-      <dd className="text-sm">{value}</dd>
+    <>
+      <dt className="font-medium">{label}</dt>
+      <dd className="text-muted-foreground">{value}</dd>
+    </>
+  );
+}
+
+function CompactFacts({
+  traits,
+  requirements,
+  targeting,
+}: {
+  traits?: ContentTrait[];
+  requirements?: ContentRequirement[];
+  targeting?: ContentTargeting;
+}) {
+  const facts = [
+    targeting ? `Target: ${formatTargetingBrief(targeting)}` : undefined,
+    ...(traits ?? []).slice(0, 3).map((trait) => `${trait.label || formatLabel(trait.key)}: ${formatJsonValue(trait.value)}`),
+    requirements?.length ? `${requirements.length} requirement${requirements.length === 1 ? '' : 's'}` : undefined,
+  ].filter((fact): fact is string => Boolean(fact));
+
+  if (!facts.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {facts.map((fact) => (
+        <Badge key={fact} variant="outline">{fact}</Badge>
+      ))}
     </div>
   );
 }
@@ -360,7 +451,7 @@ function MetadataRow({ label, value }: { label: string; value?: ReactNode }) {
 function TraitsList({ traits }: { traits: ContentTrait[] }) {
   return (
     <SectionBlock title="Traits">
-      <dl className="grid gap-2 md:grid-cols-2">
+      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-[max-content_1fr]">
         {traits.map((trait) => (
           <MetadataRow
             key={trait.key}
@@ -382,13 +473,13 @@ function RequirementsList({
 }) {
   return (
     <SectionBlock title="Requirements">
-      <div className="space-y-2">
+      <ul className="space-y-2 pl-5">
         {requirements.map((requirement, index) => (
-          <div key={`${requirement.type}-${index}`} className="space-y-2 rounded-md border border-border p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{formatLabel(requirement.type || 'requirement')}</Badge>
-              {requirement.resource ? <span className="text-sm">{requirement.resource}</span> : null}
-              {requirement.component ? <span className="text-sm text-muted-foreground">Component: {requirement.component}</span> : null}
+          <li key={`${requirement.type}-${index}`} className="list-disc">
+            <div className="inline">
+              <span className="font-medium">{formatLabel(requirement.type || 'requirement')}.</span>{' '}
+              {requirement.resource ? <span>{requirement.resource}. </span> : null}
+              {requirement.component ? <span>Component: {requirement.component}. </span> : null}
               {requirement.amount ? (
                 <RollableText
                   amount={requirement.amount}
@@ -397,11 +488,11 @@ function RequirementsList({
                   context={{ source: 'amount', label: requirement.type }}
                 />
               ) : null}
+              {requirement.text ? <span> {requirement.text}</span> : null}
             </div>
-            {requirement.text ? <p className="text-sm text-muted-foreground">{requirement.text}</p> : null}
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </SectionBlock>
   );
 }
@@ -415,29 +506,30 @@ function TargetingBlock({
 }) {
   return (
     <SectionBlock title="Targeting">
-      <div className="space-y-2 rounded-md border border-border p-3">
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{formatLabel(targeting.type)}</Badge>
-          {targeting.range ? <Badge variant="outline">Range: {formatRange(targeting.range)}</Badge> : null}
+      <div className="space-y-2">
+        <p>
+          <span className="font-medium">{formatLabel(targeting.type)}</span>
+          {targeting.range ? <span>; range {formatRange(targeting.range)}</span> : null}
           {targeting.area ? (
-            <Badge variant="outline">
-              Area: {[targeting.area.size ? formatRange(targeting.area.size) : undefined, targeting.area.shape, targeting.area.origin].filter(Boolean).join(' ')}
-            </Badge>
+            <span>
+              ; area {[targeting.area.size ? formatRange(targeting.area.size) : undefined, targeting.area.shape, targeting.area.origin].filter(Boolean).join(' ')}
+            </span>
           ) : null}
           {targeting.target_count ? (
-            <Badge variant="outline">
-              Targets:{' '}
+            <span>
+              ; targets{' '}
               <RollableText
                 amount={targeting.target_count}
                 label={formatAmount(targeting.target_count)}
                 onRoll={onRoll}
                 context={{ source: 'amount', label: 'Targets' }}
               />
-            </Badge>
+            </span>
           ) : null}
-          <TagList tags={targeting.tags} />
-        </div>
-        {targeting.text ? <p className="text-sm text-muted-foreground">{targeting.text}</p> : null}
+          .
+        </p>
+        {targeting.tags?.length ? <div className="flex flex-wrap gap-2"><TagList tags={targeting.tags} /></div> : null}
+        {targeting.text ? <p className="text-muted-foreground">{targeting.text}</p> : null}
       </div>
     </SectionBlock>
   );
@@ -478,11 +570,11 @@ function MechanicsList({
   onRoll?: ContentRenderProps['onRoll'];
 }) {
   return (
-    <div className="space-y-3">
+    <ul className="space-y-3 pl-5">
       {effects.map((effect, index) => (
         <EffectRow key={effect.id || `${effect.type}-${index}`} effect={effect} contentType={contentType} onRoll={onRoll} />
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -499,8 +591,28 @@ function EffectRow({
 }) {
   const label = effect.label || formatLabel(effect.type);
 
+  if (!compact) {
+    return (
+      <li className="list-disc">
+        <div className="space-y-1">
+          <div>
+            <span className="font-medium">{label}.</span>{' '}
+            <span className="text-muted-foreground">{renderEffectBody(effect, contentType, compact, onRoll)}</span>
+          </div>
+          {(effect.applies_on || effect.source || effect.tags?.length) ? (
+            <div className="flex flex-wrap gap-2">
+              {effect.applies_on ? <Badge variant="secondary">{formatLabel(effect.applies_on)}</Badge> : null}
+              {effect.source ? <Badge variant="outline">Source: {effect.source}</Badge> : null}
+              <TagList tags={effect.tags} />
+            </div>
+          ) : null}
+        </div>
+      </li>
+    );
+  }
+
   return (
-    <div className="space-y-2 rounded-md border border-border p-3">
+    <div className="space-y-2 rounded-md border border-border bg-muted/10 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">{label}</span>
         <Badge variant="outline">{formatLabel(effect.type)}</Badge>
@@ -508,7 +620,7 @@ function EffectRow({
         {effect.source ? <Badge variant="outline">Source: {effect.source}</Badge> : null}
         <TagList tags={effect.tags} />
       </div>
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm">
         {renderEffectBody(effect, contentType, compact, onRoll)}
       </div>
     </div>
@@ -600,9 +712,9 @@ function OutcomeList({ title, outcomes }: { title: string; outcomes?: ContentOut
   return (
     <div className="space-y-1">
       <p className="text-xs font-medium uppercase text-muted-foreground">{title}</p>
-      <ul className="space-y-1">
+      <ul className="space-y-1 pl-4">
         {outcomes.map((outcome, index) => (
-          <li key={index} className="rounded-md bg-muted/30 px-2 py-1 text-xs">
+          <li key={index} className="list-disc text-xs text-muted-foreground">
             {formatOutcome(outcome)}
           </li>
         ))}
@@ -622,12 +734,12 @@ function ScalingList({
 }) {
   return (
     <SectionBlock title="Scaling">
-      <div className="space-y-3">
+      <ol className="space-y-3 pl-5">
         {scaling.map((rule, index) => (
-          <div key={index} className="space-y-2 rounded-md border border-border p-3">
-            <p className="text-sm font-medium">{formatScalingTrigger(rule)}</p>
+          <li key={index} className="list-decimal space-y-2">
+            <p className="font-medium">{formatScalingTrigger(rule)}</p>
             {rule.effects.length ? (
-              <div className="space-y-2">
+              <ul className="space-y-2 pl-5">
                 {rule.effects.map((effect, effectIndex) => (
                   <ScalingEffectRow
                     key={effectIndex}
@@ -636,11 +748,11 @@ function ScalingList({
                     onRoll={onRoll}
                   />
                 ))}
-              </div>
+              </ul>
             ) : null}
-          </div>
+          </li>
         ))}
-      </div>
+      </ol>
     </SectionBlock>
   );
 }
@@ -660,18 +772,18 @@ function ScalingEffectRow({
 
   if (effect.type === 'custom') {
     return (
-      <div className="rounded-md bg-muted/30 p-2 text-sm text-muted-foreground">
+      <li className="list-disc text-muted-foreground">
         Custom scaling: {effect.custom_type}
-      </div>
+      </li>
     );
   }
 
   return (
-    <div className="rounded-md bg-muted/30 p-2 text-sm text-muted-foreground">
+    <li className="list-disc text-muted-foreground">
       {formatLabel(effect.type)} {effect.target_effect ? `for ${effect.target_effect}` : null}
       {effect.add ? `, add ${formatAmount(effect.add)}` : null}
       {effect.multiply !== undefined ? `, multiply by ${effect.multiply}` : null}
-    </div>
+    </li>
   );
 }
 
@@ -687,11 +799,11 @@ function NotesList({
 
   return (
     <SectionBlock title="Notes">
-      <div className="space-y-2">
+      <div className="space-y-3">
         {visibleNotes.map((note, index) => (
-          <div key={`${note.type}-${index}`} className="space-y-1 rounded-md border border-border p-3">
-            <Badge variant="outline">{formatLabel(note.type)}</Badge>
-            <p className="text-sm text-muted-foreground">{note.text}</p>
+          <div key={`${note.type}-${index}`} className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">{formatLabel(note.type)}</p>
+            <p className="text-muted-foreground">{note.text}</p>
           </div>
         ))}
       </div>
@@ -711,20 +823,20 @@ function SheetSectionPreview({
   const fields = section.fields.filter((field) => isVisibleSheetPart(field.visibility, visibility));
 
   return (
-    <div className="space-y-3 rounded-md border border-border p-3">
+    <section className="space-y-3">
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h4 className="text-sm font-semibold">{section.label}</h4>
+          <h3 className="font-semibold">{section.label}</h3>
           <SheetVisibilityBadges visibility={section.visibility} />
         </div>
-        {section.description ? <p className="text-sm text-muted-foreground">{section.description}</p> : null}
+        {section.description ? <p className="text-muted-foreground">{section.description}</p> : null}
       </div>
-      <div className="grid gap-2 md:grid-cols-2">
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[minmax(140px,max-content)_1fr]">
         {fields.map((field) => (
           <SheetFieldPreview key={field.id} field={field} onRoll={onRoll} />
         ))}
-      </div>
-    </div>
+      </dl>
+    </section>
   );
 }
 
@@ -738,46 +850,50 @@ function SheetFieldPreview({
   const formula = field.formula || (field.field_type === 'dice' || field.field_type === 'formula' ? field.source : undefined);
 
   return (
-    <div className="space-y-2 rounded-md border border-border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium">{field.label}</span>
-        <Badge variant="outline">{formatLabel(field.field_type)}</Badge>
-        {field.required ? <Badge variant="secondary">Required</Badge> : null}
-        <SheetVisibilityBadges visibility={field.visibility} />
-      </div>
-      {field.description ? <p className="text-sm text-muted-foreground">{field.description}</p> : null}
-      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-        {field.default !== undefined ? <span>Default: {formatJsonValue(field.default)}</span> : null}
-        {field.min !== undefined ? <span>Min: {field.min}</span> : null}
-        {field.max !== undefined ? <span>Max: {field.max}</span> : null}
-        {field.source ? <span>Source: {field.source}</span> : null}
-      </div>
-      {formula ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>{field.field_type === 'dice' ? 'Dice' : 'Formula'}: {formula}</span>
-          {onRoll ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onRoll(formula, { source: 'sheet_field', fieldId: field.id, label: field.label })}
-            >
-              Roll
-            </Button>
-          ) : null}
+    <>
+      <dt className="space-y-1 font-medium">
+        <span>{field.label}</span>
+        <span className="flex flex-wrap gap-2">
+          <Badge variant="outline">{formatLabel(field.field_type)}</Badge>
+          {field.required ? <Badge variant="secondary">Required</Badge> : null}
+          <SheetVisibilityBadges visibility={field.visibility} />
+        </span>
+      </dt>
+      <dd className="space-y-2 text-muted-foreground">
+        {field.description ? <p>{field.description}</p> : null}
+        <div className="flex flex-wrap gap-2 text-xs">
+          {field.default !== undefined ? <span>Default: {formatJsonValue(field.default)}</span> : null}
+          {field.min !== undefined ? <span>Min: {field.min}</span> : null}
+          {field.max !== undefined ? <span>Max: {field.max}</span> : null}
+          {field.source ? <span>Source: {field.source}</span> : null}
         </div>
-      ) : null}
-      {field.options?.length ? (
-        <div className="flex flex-wrap gap-2">
-          {field.options.map((option) => (
-            <Badge key={`${option.label}-${formatJsonValue(option.value)}`} variant="outline">
-              {option.label}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
-      {field.custom ? <JsonPreview value={field.custom} /> : null}
-    </div>
+        {formula ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span>{field.field_type === 'dice' ? 'Dice' : 'Formula'}: {formula}</span>
+            {onRoll ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onRoll(formula, { source: 'sheet_field', fieldId: field.id, label: field.label })}
+              >
+                Roll
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {field.options?.length ? (
+          <div className="flex flex-wrap gap-2">
+            {field.options.map((option) => (
+              <Badge key={`${option.label}-${formatJsonValue(option.value)}`} variant="outline">
+                {option.label}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+        {field.custom ? <JsonPreview value={field.custom} /> : null}
+      </dd>
+    </>
   );
 }
 
@@ -859,6 +975,25 @@ function formatRange(range?: ContentRange) {
   if (!range) return '';
   if (range.text) return range.text;
   return [range.value, range.unit].filter((part) => part !== undefined && part !== '').join(' ');
+}
+
+function formatTargetingBrief(targeting: ContentTargeting) {
+  return [
+    formatLabel(targeting.type),
+    targeting.range ? formatRange(targeting.range) : undefined,
+    targeting.area ? [targeting.area.size ? formatRange(targeting.area.size) : undefined, targeting.area.shape].filter(Boolean).join(' ') : undefined,
+  ].filter(Boolean).join(', ');
+}
+
+function getImportantEffects(effects: ContentEffect[]) {
+  const priority = ['damage', 'healing', 'saving_throw', 'attack', 'condition', 'resource', 'area', 'movement', 'text', 'custom'];
+  const sorted = [...effects].sort((a, b) => {
+    const aPriority = priority.indexOf(a.type);
+    const bPriority = priority.indexOf(b.type);
+    return (aPriority === -1 ? priority.length : aPriority) - (bPriority === -1 ? priority.length : bPriority);
+  });
+
+  return sorted.length ? sorted : effects;
 }
 
 function formatJsonValue(value: JSONValue | undefined) {

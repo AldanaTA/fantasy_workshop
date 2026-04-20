@@ -31,12 +31,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Eye, Edit3, Plus, Trash2, View } from 'lucide-react';
+import { BookOpen, Eye, Edit3, Plus, Trash2, View } from 'lucide-react';
 import { Game } from '../../api/models';
 import { gamesApi } from '../../api/gamesApi';
 import { get_userId } from '../../api/authStorage';
 import {  Visibility, VISIBILITY} from '../../types/visibility';
 import {ViewGamePacks} from './ViewGamePacks';
+import { GameRulesRenderer } from '../content/GameRulesRenderer';
 
 interface FormState {
   game_name: string;
@@ -59,6 +60,7 @@ export function GameCreatorDashboard() {
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [viewTarget, setViewTarget] = useState<Game | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<Game | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement | null>(null);
@@ -192,6 +194,35 @@ export function GameCreatorDashboard() {
       />
     );
   }
+
+  if (previewTarget) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Preview {previewTarget.game_name} rules</h2>
+              <p className="text-sm text-muted-foreground">
+                Review this game's rules across selected content packs.
+              </p>
+            </div>
+            <Button type="button" variant="outline" onClick={() => setPreviewTarget(null)} className="min-h-[44px] sm:w-auto">
+              <Eye className="h-4 w-4 shrink-0" />
+              Back to Games
+            </Button>
+          </div>
+          <Separator />
+          <GameRulesRenderer
+            gameId={previewTarget.id}
+            mode="full"
+            visibility="gm"
+            packMode="multi"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
@@ -245,7 +276,11 @@ export function GameCreatorDashboard() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => setViewTarget(game)}>
                         <Eye className="h-3.5 w-3.5" />
-                        View
+                        Packs
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setPreviewTarget(game)}>
+                        <BookOpen className="h-3.5 w-3.5" />
+                        Preview
                       </Button>
                       <Button variant="secondary" size="sm" onClick={() => openEditDialog(game)}>
                         <Edit3 className="h-3.5 w-3.5" />
