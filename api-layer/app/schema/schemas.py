@@ -43,6 +43,9 @@ class GameOut(IdOut):
     game_summary: Optional[str]
     visibility: str
 
+class LibraryGameOut(GameOut):
+    role: str
+
 class GameShareLinkCreate(BaseModel):
     role: str = "purchaser"
     expires_in_days: int = Field(default=7, ge=1, le=90)

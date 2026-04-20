@@ -26,6 +26,12 @@ export interface Game {
 	visibility: Visibility;
 }
 
+export type GameLibraryRole = "owner" | "editor" | "purchaser" | "viewer" | string;
+
+export interface LibraryGame extends Game {
+	role?: GameLibraryRole;
+}
+
 export interface GameCreate {
 	owner_user_id: UUID;
 	game_name: string;

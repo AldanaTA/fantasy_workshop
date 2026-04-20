@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Toaster } from './ui/sonner';
 import { BookOpen, Scroll, User, LogOut } from 'lucide-react';
 import { GameCreatorDashboard } from './game_creator/GameCreatorDashboard';
+import { GameLibraryPage } from './games/GameLibraryPage';
 
 
 import {
@@ -33,11 +34,12 @@ import { get_display_name } from '../api/authStorage';
 interface MainAppProps {
   tokens: TokenPair;
   onLogout: () => void;
+  initialRole?: UserRole;
 }
 
-export function MainApp({ tokens, onLogout }: MainAppProps) {
+export function MainApp({ tokens, onLogout, initialRole = 'creator' }: MainAppProps) {
   const navigate = useNavigate();
-  const [currentRole, setCurrentRole] = useState<UserRole>('creator');
+  const [currentRole, setCurrentRole] = useState<UserRole>(initialRole);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
@@ -134,12 +136,7 @@ export function MainApp({ tokens, onLogout }: MainAppProps) {
         {currentRole === 'creator' ? (
           <GameCreatorDashboard />
         ) : (
-          <div className="rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
-            <h2 className="text-xl font-semibold">{currentRole === 'gm' ? 'Game Master' : 'Player'} View</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Switch to Creator mode to manage games, or continue with your current role for campaign workflows.
-            </p>
-          </div>
+          <GameLibraryPage />
         )}
       </main>
 

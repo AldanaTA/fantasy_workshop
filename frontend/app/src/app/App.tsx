@@ -108,6 +108,16 @@ function App() {
             )
           }
         />
+        <Route
+          path="/library"
+          element={
+            tokens ? (
+              <MainApp tokens={tokens} onLogout={handleLogout} initialRole="player" />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

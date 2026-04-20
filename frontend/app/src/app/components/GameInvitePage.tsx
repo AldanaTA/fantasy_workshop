@@ -126,8 +126,8 @@ export function GameInvitePage({ tokens }: GameInvitePageProps) {
                     <div className="rounded-md border border-border bg-background p-3 text-sm">
                       {preview.game_name} is now in your library.
                     </div>
-                    <Button type="button" onClick={() => navigate('/app')}>
-                      Go to App
+                    <Button type="button" onClick={() => navigate('/library')}>
+                      Go to Library
                     </Button>
                   </div>
                 ) : tokens ? (

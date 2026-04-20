@@ -6,6 +6,7 @@ import type {
   GameShareLink,
   GameShareLinkCreate,
   GameSharePreview,
+  LibraryGame,
 } from './models';
 import { getAccessToken } from './authStorage';
 
@@ -36,7 +37,7 @@ export const gamesApi = {
     request<Game[]>(API_URL, `/editable?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
   listLibrary: (limit = 50, offset = 0, token?: string) =>
-    request<Game[]>(API_URL, `/library?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+    request<LibraryGame[]>(API_URL, `/library?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
   create: (payload: GameCreate, token?: string) => request<Game>(API_URL, ``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
 

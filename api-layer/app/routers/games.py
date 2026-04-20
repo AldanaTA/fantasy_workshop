@@ -7,13 +7,16 @@ from redis.asyncio import Redis
 from app.helpers import require_user, new_id
 from app.schema.db import get_db, get_redis
 from app.schema.models import ContentCategory, Game, GameRole, GameVisibility, UserGameRole, ContentPack
-from app.schema.schemas import GameCreate, GameOut
+from app.schema.schemas import GameCreate, GameOut, LibraryGameOut
 from app.helpers_rate_limit import rate_limit_or_429
 
 router = APIRouter(prefix="/games", tags=["games"])
 
 def _user_id(user: dict) -> UUID:
     return UUID(user["uid"])
+
+def _enum_value(value) -> str:
+    return value.value if hasattr(value, "value") else str(value)
 
 # ---- CREATE ----
 @router.post("", response_model=GameOut)
@@ -78,7 +81,7 @@ async def list_owned_games(
     return list(res.scalars().all())
 
 # -- library listing: owned or granted through user_game_roles ---
-@router.get("/library", response_model=list[GameOut])
+@router.get("/library", response_model=list[LibraryGameOut])
 async def list_library_games(
     limit: int = 50,
     offset: int = 0,
@@ -89,17 +92,30 @@ async def list_library_games(
     user_id = _user_id(user)
     await rate_limit_or_429(redis, f"rl:games:list_library:{user_id}", rate_per_sec=5/60, burst=10)
     limit = min(max(limit, 1), 200)
-    q = select(Game).where(
+    q = select(Game, UserGameRole.role).outerjoin(
+        UserGameRole,
+        (UserGameRole.game_id == Game.id) & (UserGameRole.user_id == user_id),
+    ).where(
         or_(
             Game.owner_user_id == user_id,
-            exists().where(
-                UserGameRole.user_id == user_id,
-                UserGameRole.game_id == Game.id,
-            ),
+            UserGameRole.user_id == user_id,
         )
     ).limit(limit).offset(offset)
     res = await db.execute(q)
-    return list(res.scalars().all())
+    games = []
+    for game, role in res.all():
+        role_value = "owner" if game.owner_user_id == user_id else _enum_value(role)
+        games.append(
+            LibraryGameOut(
+                id=game.id,
+                owner_user_id=game.owner_user_id,
+                game_name=game.game_name,
+                game_summary=game.game_summary,
+                visibility=_enum_value(game.visibility),
+                role=role_value,
+            )
+        )
+    return games
 
 # -- editable / owned game listing ---
 @router.get("/editable", response_model=list[GameOut])
