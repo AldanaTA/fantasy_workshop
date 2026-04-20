@@ -39,6 +39,7 @@ import {
 import { JSONDict, JSONValue } from '../../types/misc';
 import { contentApi } from '../../api/contentApi';
 import { useToast } from '../ui/toastProvider';
+import { ContentRender } from '../content/ContentRender';
 
 const contentTypeOptions: Array<{ value: ContentType; label: string }> = [
   { value: 'spell', label: 'Spell' },
@@ -575,6 +576,16 @@ const buildFields = (form: ContentFormState): TtrpgContentFieldsV1 | CharacterSh
   return ttrpgFields;
 };
 
+const buildPreviewFields = (form: ContentFormState): { fields?: ContentFields; error?: string } => {
+  try {
+    return { fields: buildFields(form) };
+  } catch (err) {
+    return {
+      error: (err as Error)?.message || 'Preview is unavailable until the content fields are valid.',
+    };
+  }
+};
+
 export function ContentMaker({ pack, category, content, onCreated, onCancel }: Props) {
   const [form, setForm] = useState<ContentFormState>(() => emptyContentForm());
   const [error, setError] = useState<string | null>(null);
@@ -582,6 +593,7 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
   const { toastPromise } = useToast();
   const isEditing = Boolean(content);
   const isSheetTemplate = form.content_type === 'character_sheet_template';
+  const preview = buildPreviewFields(form);
 
   useEffect(() => {
     let isCancelled = false;
@@ -1152,6 +1164,28 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
                 </div>
               ))}
             </div>
+          </section>
+
+          <Separator />
+
+          <section className="grid gap-4">
+            <div>
+              <h3 className="font-semibold">Preview</h3>
+              <p className="text-sm text-muted-foreground">Review how this content will appear when rendered from its structured fields.</p>
+            </div>
+            {preview.fields ? (
+              <ContentRender
+                fields={preview.fields}
+                contentName={form.name.trim() || undefined}
+                summary={form.summary.trim() || null}
+                mode="full"
+                visibility="gm"
+              />
+            ) : (
+              <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
+                {preview.error}
+              </div>
+            )}
           </section>
 
           {error ? (

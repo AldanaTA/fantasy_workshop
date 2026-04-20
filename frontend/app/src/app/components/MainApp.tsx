@@ -85,7 +85,7 @@ export function MainApp({ tokens, onLogout }: MainAppProps) {
         <div className="container mx-auto px-4 py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold">TTRPG Companion</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold">Fantasy Workshop</h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
                 Welcome, {get_display_name()}! You are logged in ! <span className="font-medium">{currentRole.toUpperCase()}</span>.
               </p>
