@@ -106,6 +106,12 @@ export interface ContentActiveVersion {
 	deleted_at?: DateTime | null;
 }
 
+export interface ContentWithActiveVersion {
+	content: Content;
+	active_version?: ContentVersion | null;
+	error?: string | null;
+}
+
 // ---------- CAMPAIGNS ----------
 
 export interface Campaign {

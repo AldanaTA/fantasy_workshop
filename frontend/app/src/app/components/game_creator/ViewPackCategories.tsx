@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -75,21 +75,23 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
   const [contentMakerTarget, setContentMakerTarget] = useState<ContentMakerTarget | null>(null);
   const [categoryContent, setCategoryContent] = useState<Record<string, CategoryContentState>>({});
   const [isOrderDirty, setIsOrderDirty] = useState(false);
+  const categoryContentController = useRef<AbortController | null>(null);
   const {toastPromise} = useToast();
 
-  const loadPacks = async () => {
+  const loadPacks = async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const contentCategories = await contentCategoriesApi.listByPack(pack.id, 100, 0);
+      const contentCategories = await contentCategoriesApi.listByPack(pack.id, 100, 0, { signal });
       setContentCategories(contentCategories);
       setIsOrderDirty(false);
     } catch (err) {
+      if (isAbortError(err)) return;
       setError((err as Error)?.message || 'Unable to load content categories.');
       setContentCategories([]);
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   };
 
@@ -97,8 +99,11 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
     const existing = categoryContent[categoryId];
     if (existing?.hasLoaded && !force) return;
 
+    categoryContentController.current?.abort();
+    const controller = new AbortController();
+    categoryContentController.current = controller;
+
     setCategoryContent((prev) => ({
-      ...prev,
       [categoryId]: {
         items: prev[categoryId]?.items ?? [],
         isLoading: true,
@@ -108,9 +113,8 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
     }));
 
     try {
-      const items = await contentApi.listByCategory(categoryId, 100, 0);
+      const items = await contentApi.listByCategory(categoryId, 100, 0, { signal: controller.signal });
       setCategoryContent((prev) => ({
-        ...prev,
         [categoryId]: {
           items,
           isLoading: false,
@@ -119,8 +123,8 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
         },
       }));
     } catch (err) {
+      if (isAbortError(err)) return;
       setCategoryContent((prev) => ({
-        ...prev,
         [categoryId]: {
           items: prev[categoryId]?.items ?? [],
           isLoading: false,
@@ -128,22 +132,37 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
           hasLoaded: true,
         },
       }));
+    } finally {
+      if (categoryContentController.current === controller) {
+        categoryContentController.current = null;
+      }
     }
   };
 
   const toggleCategory = async (categoryId: string) => {
     if (expandedCategoryId === categoryId) {
+      categoryContentController.current?.abort();
+      categoryContentController.current = null;
       setExpandedCategoryId(null);
+      setCategoryContent({});
       return;
     }
 
     setExpandedCategoryId(categoryId);
+    setCategoryContent((prev) => (prev[categoryId] ? { [categoryId]: prev[categoryId] } : {}));
     await loadCategoryContent(categoryId);
   };
 
   useEffect(() => {
-    loadPacks();
-  }, []);
+    const controller = new AbortController();
+    void loadPacks(controller.signal);
+
+    return () => {
+      controller.abort();
+      categoryContentController.current?.abort();
+      categoryContentController.current = null;
+    };
+  }, [pack.id]);
 
 
   const openCreateDialog = () => {
@@ -573,4 +592,8 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
     </div>
   );
 
+}
+
+function isAbortError(err: unknown) {
+  return err instanceof DOMException && err.name === 'AbortError';
 }

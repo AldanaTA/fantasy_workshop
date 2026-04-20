@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
+from sqlalchemy import and_, exists, func, select
 from uuid import UUID
 from redis.asyncio import Redis
 
@@ -14,14 +14,18 @@ from app.schema.models import (
     ContentActiveVersion,
     ContentCategory,
     ContentCategoryMembership,
+    ContentPack,
     ContentVersion,
+    Game,
+    UserGameRole,
 )
 from app.schema.schemas import (
     ContentCategoryMembershipCreate,
     ContentCategoryMembershipOut,
     ContentCreate, ContentOut,
     ContentVersionCreate, ContentVersionOut,
-    ContentActiveVersionUpsert, ContentActiveVersionOut
+    ContentActiveVersionUpsert, ContentActiveVersionOut,
+    ContentWithActiveVersionOut,
 )
 
 router = APIRouter(prefix="/content", tags=["content"])
@@ -41,6 +45,9 @@ def key_by_pack(pack_id: UUID, limit: int, offset: int) -> str:
 
 def key_by_category(category_id: UUID, limit: int, offset: int) -> str:
     return f"content:by-category:{category_id}:l={limit}:o={offset}"
+
+def key_by_category_active(category_id: UUID, limit: int, offset: int, include_missing: bool) -> str:
+    return f"content:by-category-active:{category_id}:l={limit}:o={offset}:missing={int(include_missing)}"
 
 def idx_versions(content_id: UUID) -> str:
     return f"idx:content:versions:{content_id}"
@@ -68,6 +75,74 @@ def serialize_content_version(row: ContentVersion) -> dict:
         "content_type": row.content_type,
         "created_at": row.created_at.isoformat(),
     }
+
+def user_id_from_claims(user) -> UUID:
+    return UUID(user["uid"]) if isinstance(user, dict) else user.id
+
+def enum_value(value) -> str:
+    return getattr(value, "value", str(value))
+
+async def require_category_view_access(category_id: UUID, user, db: AsyncSession) -> ContentCategory:
+    category = await db.get(ContentCategory, category_id)
+    if not category:
+        raise HTTPException(404, "category not found")
+
+    pack = await db.get(ContentPack, category.pack_id)
+    if not pack:
+        raise HTTPException(404, "pack not found")
+
+    game = await db.get(Game, pack.game_id)
+    if not game:
+        raise HTTPException(404, "game not found")
+
+    user_id = user_id_from_claims(user)
+    has_editor_role = await db.scalar(
+        select(exists().where(
+            UserGameRole.user_id == user_id,
+            UserGameRole.game_id == game.id,
+            UserGameRole.role == "editor",
+        ))
+    )
+    if game.owner_user_id == user_id or has_editor_role:
+        return category
+
+    if enum_value(pack.status) == "published" and enum_value(pack.visibility) == "public":
+        return category
+
+    raise HTTPException(403, "Access denied")
+
+async def require_pack_view_access(pack_id: UUID, user, db: AsyncSession) -> ContentPack:
+    pack = await db.get(ContentPack, pack_id)
+    if not pack:
+        raise HTTPException(404, "pack not found")
+
+    game = await db.get(Game, pack.game_id)
+    if not game:
+        raise HTTPException(404, "game not found")
+
+    user_id = user_id_from_claims(user)
+    has_editor_role = await db.scalar(
+        select(exists().where(
+            UserGameRole.user_id == user_id,
+            UserGameRole.game_id == game.id,
+            UserGameRole.role == "editor",
+        ))
+    )
+    if game.owner_user_id == user_id or has_editor_role:
+        return pack
+
+    if enum_value(pack.status) == "published" and enum_value(pack.visibility) == "public":
+        return pack
+
+    raise HTTPException(403, "Access denied")
+
+async def invalidate_content_category_indexes(r: Redis, db: AsyncSession, content_id: UUID):
+    res = await db.execute(
+        select(ContentCategoryMembership.category_id)
+        .where(ContentCategoryMembership.content_id == content_id)
+    )
+    for category_id in res.scalars().all():
+        await cache_index_invalidate(r, idx_category(category_id))
 
 # -------- Content CRUD --------
 @router.post("", response_model=ContentOut, dependencies=[Depends(require_user)])
@@ -113,10 +188,13 @@ async def list_content_by_pack(
     pack_id: UUID,
     limit: int = 50,
     offset: int = 0,
+    user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
     limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
+    await require_pack_view_access(pack_id, user, db)
     k = key_by_pack(pack_id, limit, offset)
     idx = idx_pack(pack_id)
 
@@ -144,10 +222,13 @@ async def list_content_by_category(
     category_id: UUID,
     limit: int = 50,
     offset: int = 0,
+    user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
     limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
+    await require_category_view_access(category_id, user, db)
     k = key_by_category(category_id, limit, offset)
     idx = idx_category(category_id)
 
@@ -169,6 +250,71 @@ async def list_content_by_category(
     rows = list(res.scalars().all())
 
     out = [serialize_content(x) for x in rows]
+
+    await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
+    await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
+    return out
+
+@router.get("/by-category/{category_id}/active", response_model=list[ContentWithActiveVersionOut], dependencies=[Depends(require_user)])
+async def list_content_by_category_with_active(
+    category_id: UUID,
+    limit: int = 50,
+    offset: int = 0,
+    include_missing: bool = False,
+    user = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+    r: Redis = Depends(get_redis),
+):
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
+    await require_category_view_access(category_id, user, db)
+
+    k = key_by_category_active(category_id, limit, offset, include_missing)
+    idx = idx_category(category_id)
+
+    cached = await cache_get_json(r, k)
+    if cached is not None:
+        return cached
+
+    q = (
+        select(Content, ContentVersion)
+        .join(
+            ContentCategoryMembership,
+            ContentCategoryMembership.content_id == Content.id,
+        )
+        .outerjoin(
+            ContentActiveVersion,
+            and_(
+                ContentActiveVersion.content_id == Content.id,
+                ContentActiveVersion.deleted_at.is_(None),
+            ),
+        )
+        .outerjoin(
+            ContentVersion,
+            and_(
+                ContentVersion.content_id == Content.id,
+                ContentVersion.version_num == ContentActiveVersion.active_version_num,
+            ),
+        )
+        .where(ContentCategoryMembership.category_id == category_id)
+        .order_by(Content.updated_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+
+    if not include_missing:
+        q = q.where(ContentVersion.id.is_not(None))
+
+    rows = list((await db.execute(q)).all())
+
+    out = [
+        {
+            "content": serialize_content(content),
+            "active_version": serialize_content_version(active_version) if active_version else None,
+            "error": None if active_version else "active version not found",
+        }
+        for content, active_version in rows
+    ]
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
@@ -329,6 +475,7 @@ async def create_version(
 
     await cache_index_invalidate(r, idx_versions(content_id))
     await r.delete(key_active(content_id))  # active may be impacted by UI logic
+    await invalidate_content_category_indexes(r, db, content_id)
     return serialize_content_version(row)
 
 @router.get("/{content_id}/versions", response_model=list[ContentVersionOut], dependencies=[Depends(require_user)])
@@ -386,6 +533,7 @@ async def upsert_active(
         await db.commit()
         await db.refresh(existing)
         await r.delete(key_active(content_id))
+        await invalidate_content_category_indexes(r, db, content_id)
         return existing
 
     row = ContentActiveVersion(
@@ -397,6 +545,7 @@ async def upsert_active(
     await db.commit()
     await db.refresh(row)
     await r.delete(key_active(content_id))
+    await invalidate_content_category_indexes(r, db, content_id)
     return row
 
 @router.get("/{content_id}/active", response_model=ContentVersionOut, dependencies=[Depends(require_user)])

@@ -52,9 +52,13 @@ async def delete_content_pack(
 @router.get("/by-game/{game_id}", response_model=list[ContentPackOut], dependencies=[Depends(require_user)])
 async def list_packs_by_game(
     game_id: UUID,
+    limit: int = 50,
+    offset: int = 0,
     user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
     user_id = UUID(user["uid"]) if isinstance(user, dict) else user.id
     game = await db.get(Game, game_id)
     if not game:
@@ -71,6 +75,10 @@ async def list_packs_by_game(
         raise HTTPException(403, "Access denied")
 
     result = await db.execute(
-        select(ContentPack).where(ContentPack.game_id == game_id).order_by(ContentPack.updated_at.desc())
+        select(ContentPack)
+        .where(ContentPack.game_id == game_id)
+        .order_by(ContentPack.updated_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return list(result.scalars().all())

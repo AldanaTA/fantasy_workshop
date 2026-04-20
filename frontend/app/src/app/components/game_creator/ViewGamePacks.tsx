@@ -80,24 +80,30 @@ export function ViewGamePacks({ game, onBack }: Props) {
     textarea.style.height = `${textarea.scrollHeight}px`;
   };
 
-  const loadPacks = async () => {
+  const loadPacks = async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const contentPacks = await contentPacksApi.listByGame(game.id, 100, 0);
+      const contentPacks = await contentPacksApi.listByGame(game.id, 100, 0, { signal });
       setContentPacks(contentPacks);
     } catch (err) {
+      if (isAbortError(err)) return;
       setError((err as Error)?.message || 'Unable to load content packs.');
       setContentPacks([]);
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadPacks();
-  }, []);
+    const controller = new AbortController();
+    void loadPacks(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [game.id]);
 
   useEffect(() => {
     resizeSummaryTextarea(summaryRef.current);
@@ -412,4 +418,8 @@ export function ViewGamePacks({ game, onBack }: Props) {
     </div>
   );
 
+}
+
+function isAbortError(err: unknown) {
+  return err instanceof DOMException && err.name === 'AbortError';
 }

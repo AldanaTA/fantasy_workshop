@@ -57,9 +57,13 @@ async def delete_content_category(
 @router.get("/by-pack/{pack_id}", response_model=list[ContentCategoryOut], dependencies=[Depends(require_user)])
 async def list_categories_by_pack(
     pack_id: UUID,
+    limit: int = 50,
+    offset: int = 0,
     user = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
     user_id = UUID(user["uid"]) if isinstance(user, dict) else user.id
     pack = await db.get(ContentPack, pack_id)
     if not pack:
@@ -83,6 +87,8 @@ async def list_categories_by_pack(
         select(ContentCategory)
         .where(ContentCategory.pack_id == pack_id)
         .order_by(ContentCategory.sort_key.asc())
+        .limit(limit)
+        .offset(offset)
     )
     return list(result.scalars().all())
 

@@ -162,6 +162,11 @@ class ContentVersionOut(IdOut):
     content_type: str
     created_at: datetime
 
+class ContentWithActiveVersionOut(BaseModel):
+    content: ContentOut
+    active_version: Optional[ContentVersionOut] = None
+    error: Optional[str] = None
+
 # Active version pointer
 class ContentActiveVersionUpsert(BaseModel):
     content_id: UUID

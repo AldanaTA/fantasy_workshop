@@ -4,10 +4,19 @@ import { getAccessToken } from './authStorage';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT_PACKS;
 
+type ApiRequestOptions = {
+  token?: string;
+  signal?: AbortSignal;
+};
+
 const authHeaders = (token?: string) => {
   const t = token ?? getAccessToken();
   return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
+
+const resolveOptions = (options?: string | ApiRequestOptions): ApiRequestOptions => (
+  typeof options === 'string' ? { token: options } : options ?? {}
+);
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const url = `${API_URL}${path}`;
@@ -23,16 +32,33 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 export const contentPacksApi = {
-  list: (limit = 50, offset = 0, token?: string) => request<ContentPack[]>(`?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+  list: (limit = 50, offset = 0, options?: string | ApiRequestOptions) => {
+    const { token, signal } = resolveOptions(options);
+    return request<ContentPack[]>(`?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token), signal });
+  },
 
-  listByGame: (gameId: string, limit = 50, offset = 0, token?: string) =>
-    request<ContentPack[]>(`/by-game/${gameId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+  listByGame: (gameId: string, limit = 50, offset = 0, options?: string | ApiRequestOptions) => {
+    const { token, signal } = resolveOptions(options);
+    return request<ContentPack[]>(`/by-game/${gameId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token), signal });
+  },
 
-  get: (id: string, token?: string) => request<ContentPack>(`/${id}`, { method: 'GET', headers: authHeaders(token) }),
+  get: (id: string, options?: string | ApiRequestOptions) => {
+    const { token, signal } = resolveOptions(options);
+    return request<ContentPack>(`/${id}`, { method: 'GET', headers: authHeaders(token), signal });
+  },
 
-  create: (payload: Partial<ContentPack>, token?: string) => request<ContentPack>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+  create: (payload: Partial<ContentPack>, options?: string | ApiRequestOptions) => {
+    const { token, signal } = resolveOptions(options);
+    return request<ContentPack>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal });
+  },
 
-  patch: (id: string, patch: Partial<ContentPack>, token?: string) => request<ContentPack>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
+  patch: (id: string, patch: Partial<ContentPack>, options?: string | ApiRequestOptions) => {
+    const { token, signal } = resolveOptions(options);
+    return request<ContentPack>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token), signal });
+  },
 
-  delete: (id: string, token?: string) => request<void>(`userdel/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
+  delete: (id: string, options?: string | ApiRequestOptions) => {
+    const { token, signal } = resolveOptions(options);
+    return request<void>(`userdel/${id}`, { method: 'DELETE', headers: authHeaders(token), signal });
+  },
 };

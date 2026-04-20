@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { contentApi } from '../../api/contentApi';
 import type { Character, CharacterSheetInstance, ContentVersion } from '../../api/models';
@@ -69,7 +69,7 @@ export function GameSheetRenderer({
   }, [character.id, character.sheet, templateContentId, templateVersionNum]);
 
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
 
     const loadTemplate = async () => {
       const contentId = sheet.template_content_id ?? templateContentId;
@@ -84,14 +84,14 @@ export function GameSheetRenderer({
 
       try {
         const templateVersion = versionNum
-          ? await contentApi.getVersion(contentId, versionNum)
-          : await contentApi.getActive(contentId);
+          ? await contentApi.getVersion(contentId, versionNum, { signal: controller.signal })
+          : await contentApi.getActive(contentId, { signal: controller.signal });
 
         if (!isCharacterSheetTemplateFieldsV1(templateVersion.fields)) {
           throw new Error('The selected content version is not a character sheet template.');
         }
 
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setTemplateState({
             templateVersion,
             templateFields: templateVersion.fields,
@@ -100,7 +100,8 @@ export function GameSheetRenderer({
           });
         }
       } catch (err) {
-        if (!isCancelled) {
+        if (isAbortError(err)) return;
+        if (!controller.signal.aborted) {
           setTemplateState({
             isLoading: false,
             error: (err as Error)?.message || 'Unable to load character sheet template.',
@@ -112,7 +113,7 @@ export function GameSheetRenderer({
     loadTemplate();
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [sheet.template_content_id, sheet.template_version_num, templateContentId, templateVersionNum]);
 
@@ -122,7 +123,7 @@ export function GameSheetRenderer({
       .sort((a, b) => (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER));
   }, [templateState.templateFields, visibility]);
 
-  const updateFieldValue = (fieldId: string, value: JSONValue) => {
+  const updateFieldValue = useCallback((fieldId: string, value: JSONValue) => {
     setSheet((prev) => {
       const nextSheet = {
         ...prev,
@@ -134,7 +135,7 @@ export function GameSheetRenderer({
       onChange?.(nextSheet);
       return nextSheet;
     });
-  };
+  }, [onChange]);
 
   if (templateState.isLoading) {
     return <SheetStateMessage className={className} title="Loading sheet" message="Resolving the character sheet template." />;
@@ -202,7 +203,7 @@ export function GameSheetRenderer({
   );
 }
 
-function CharacterSheetSection({
+const CharacterSheetSection = memo(function CharacterSheetSection({
   section,
   values,
   visibility,
@@ -244,9 +245,42 @@ function CharacterSheetSection({
       </div>
     </section>
   );
+}, areEqualSheetSections);
+
+function areEqualSheetSections(
+  prev: {
+    section: CharacterSheetTemplateSection;
+    values: JSONDict;
+    visibility: 'player' | 'gm';
+    isEditable: boolean;
+    onFieldChange: (fieldId: string, value: JSONValue) => void;
+    onRoll?: ContentRenderProps['onRoll'];
+  },
+  next: {
+    section: CharacterSheetTemplateSection;
+    values: JSONDict;
+    visibility: 'player' | 'gm';
+    isEditable: boolean;
+    onFieldChange: (fieldId: string, value: JSONValue) => void;
+    onRoll?: ContentRenderProps['onRoll'];
+  },
+) {
+  if (
+    prev.section !== next.section ||
+    prev.visibility !== next.visibility ||
+    prev.isEditable !== next.isEditable ||
+    prev.onFieldChange !== next.onFieldChange ||
+    prev.onRoll !== next.onRoll
+  ) {
+    return false;
+  }
+
+  return prev.section.fields.every((field) => (
+    getFieldValue(prev.values, field) === getFieldValue(next.values, field)
+  ));
 }
 
-function CharacterSheetField({
+const CharacterSheetField = memo(function CharacterSheetField({
   field,
   value,
   isEditable,
@@ -279,7 +313,7 @@ function CharacterSheetField({
       </div>
     </div>
   );
-}
+});
 
 function EditableSheetField({
   field,
@@ -602,4 +636,8 @@ function safeJson(value: unknown) {
   } catch {
     return '[Unserializable value]';
   }
+}
+
+function isAbortError(err: unknown) {
+  return err instanceof DOMException && err.name === 'AbortError';
 }
