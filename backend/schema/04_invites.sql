@@ -50,3 +50,23 @@ CREATE TABLE user_game_roles (
 
   PRIMARY KEY (user_id, game_id)
 );
+
+-- Reusable copyable links for adding a shared game to another user's library.
+CREATE TABLE IF NOT EXISTS game_share_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  role game_role NOT NULL DEFAULT 'purchaser',
+  max_uses INT,
+  uses_count INT NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS game_share_links_game_id_idx ON game_share_links(game_id);
+CREATE INDEX IF NOT EXISTS game_share_links_token_idx ON game_share_links(token);
+CREATE INDEX IF NOT EXISTS game_share_links_active_token_idx
+  ON game_share_links(token)
+  WHERE revoked_at IS NULL;

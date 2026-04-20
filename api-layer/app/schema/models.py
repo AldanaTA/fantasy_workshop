@@ -154,6 +154,40 @@ class UserGameRole(Base):
     role: Mapped[GameRole] = mapped_column(Enum(GameRole, name="game_role"), nullable=False)
 
 
+class GameShareLink(Base):
+    __tablename__ = "game_share_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+
+    game_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False
+    )
+
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    token: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+
+    role: Mapped[GameRole] = mapped_column(
+        Enum(GameRole, name="game_role", native_enum=True),
+        nullable=False,
+        default=GameRole.purchaser,
+    )
+
+    max_uses: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    uses_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class ContentPack(Base):
     __tablename__ = "content_packs"
 

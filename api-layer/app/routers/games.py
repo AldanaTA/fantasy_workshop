@@ -6,11 +6,14 @@ from redis.asyncio import Redis
 
 from app.helpers import require_user, new_id
 from app.schema.db import get_db, get_redis
-from app.schema.models import ContentCategory, Game, UserGameRole, ContentPack
+from app.schema.models import ContentCategory, Game, GameRole, GameVisibility, UserGameRole, ContentPack
 from app.schema.schemas import GameCreate, GameOut
 from app.helpers_rate_limit import rate_limit_or_429
 
 router = APIRouter(prefix="/games", tags=["games"])
+
+def _user_id(user: dict) -> UUID:
+    return UUID(user["uid"])
 
 # ---- CREATE ----
 @router.post("", response_model=GameOut)
@@ -67,9 +70,34 @@ async def list_owned_games(
     redis: Redis = Depends(get_redis),
     db: AsyncSession = Depends(get_db)
 ):
-    await rate_limit_or_429(redis, f"rl:games:list_owned:{user.id}", rate_per_sec=5/60, burst=10)
+    user_id = _user_id(user)
+    await rate_limit_or_429(redis, f"rl:games:list_owned:{user_id}", rate_per_sec=5/60, burst=10)
     limit = min(max(limit, 1), 200)
-    q = select(Game).where(Game.owner_user_id == user.id).limit(limit).offset(offset)
+    q = select(Game).where(Game.owner_user_id == user_id).limit(limit).offset(offset)
+    res = await db.execute(q)
+    return list(res.scalars().all())
+
+# -- library listing: owned or granted through user_game_roles ---
+@router.get("/library", response_model=list[GameOut])
+async def list_library_games(
+    limit: int = 50,
+    offset: int = 0,
+    user = Depends(require_user),
+    redis: Redis = Depends(get_redis),
+    db: AsyncSession = Depends(get_db)
+):
+    user_id = _user_id(user)
+    await rate_limit_or_429(redis, f"rl:games:list_library:{user_id}", rate_per_sec=5/60, burst=10)
+    limit = min(max(limit, 1), 200)
+    q = select(Game).where(
+        or_(
+            Game.owner_user_id == user_id,
+            exists().where(
+                UserGameRole.user_id == user_id,
+                UserGameRole.game_id == Game.id,
+            ),
+        )
+    ).limit(limit).offset(offset)
     res = await db.execute(q)
     return list(res.scalars().all())
 
@@ -82,7 +110,7 @@ async def list_editable_games(
     redis: Redis = Depends(get_redis),
     db: AsyncSession = Depends(get_db)
 ):
-    user_id = UUID(user["uid"]) if isinstance(user, dict) else user.id
+    user_id = _user_id(user)
     await rate_limit_or_429(redis, f"rl:games:list_editable:{user_id}", rate_per_sec=5/60, burst=10)
     limit = min(max(limit, 1), 200)
     q = select(Game).where(
@@ -91,7 +119,7 @@ async def list_editable_games(
             exists().where(
                 UserGameRole.user_id == user_id,
                 UserGameRole.game_id == Game.id,
-                UserGameRole.role == "editor",
+                UserGameRole.role == GameRole.editor,
             ),
         )
     ).limit(limit).offset(offset)
@@ -106,14 +134,15 @@ async def get_game(
     redis: Redis = Depends(get_redis),
     db: AsyncSession = Depends(get_db)
 ):
-    await rate_limit_or_429(redis, f"rl:games:get:{user.id}", rate_per_sec=10/60, burst=20)
+    user_id = _user_id(user)
+    await rate_limit_or_429(redis, f"rl:games:get:{user_id}", rate_per_sec=10/60, burst=20)
     game = await db.get(Game, id)
     if not game:
         raise HTTPException(404, "Game not found")
     has_role = await db.scalar(
-        select(exists().where(UserGameRole.user_id == UUID(user["uid"]), UserGameRole.game_id == game.id))
+        select(exists().where(UserGameRole.user_id == user_id, UserGameRole.game_id == game.id))
     )
-    if not (game.owner_user_id == user.id or game.visibility == "public" or has_role):
+    if not (game.owner_user_id == user_id or game.visibility == GameVisibility.public or has_role):
         raise HTTPException(403, "Access denied")
     return game
 

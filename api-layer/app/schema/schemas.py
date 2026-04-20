@@ -43,6 +43,37 @@ class GameOut(IdOut):
     game_summary: Optional[str]
     visibility: str
 
+class GameShareLinkCreate(BaseModel):
+    role: str = "purchaser"
+    expires_in_days: int = Field(default=7, ge=1, le=90)
+    max_uses: Optional[int] = Field(default=10, ge=1, le=1000)
+
+class GameShareLinkOut(IdOut):
+    game_id: UUID
+    token: str
+    url: Optional[str] = None
+    role: str
+    expires_at: datetime
+    max_uses: Optional[int]
+    uses_count: int
+    revoked_at: Optional[datetime]
+    created_at: datetime
+
+class GameSharePreview(BaseModel):
+    game_id: UUID
+    game_name: str
+    game_summary: Optional[str]
+    role: str
+    expires_at: datetime
+    is_expired: bool
+    is_revoked: bool
+    is_usable: bool
+
+class GameShareAcceptResult(BaseModel):
+    game_id: UUID
+    role: str
+    status: str
+
 # Content pack
 class ContentPackCreate(BaseModel):
     game_id: UUID

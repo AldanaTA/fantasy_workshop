@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -17,6 +17,7 @@ interface LoginProps {
 
 export function Login({ onLogin }: LoginProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -28,6 +29,14 @@ export function Login({ onLogin }: LoginProps) {
   const [registerName, setRegisterName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+
+  const getPostAuthDestination = () => {
+    const redirect = searchParams.get('redirect');
+    if (redirect?.startsWith('/') && !redirect.startsWith('//')) {
+      return redirect;
+    }
+    return '/app';
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,8 +57,9 @@ export function Login({ onLogin }: LoginProps) {
       set_display_name(user.display_name);
       set_email(user.email);
 
+      const destination = getPostAuthDestination();
+      navigate(destination, { replace: true });
       onLogin(tokens);
-      navigate('/app');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -77,8 +87,9 @@ export function Login({ onLogin }: LoginProps) {
       set_display_name(user.display_name);
       set_email(user.email);
 
+      const destination = getPostAuthDestination();
+      navigate(destination, { replace: true });
       onLogin(tokens);
-      navigate('/app');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {

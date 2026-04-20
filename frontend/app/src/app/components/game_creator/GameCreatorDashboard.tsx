@@ -1,4 +1,4 @@
-import { use, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -31,8 +31,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { BookOpen, Eye, Edit3, Plus, Trash2, View } from 'lucide-react';
-import { Game } from '../../api/models';
+import { BookOpen, Copy, Eye, Edit3, Link2, Plus, Trash2 } from 'lucide-react';
+import { Game, GameShareLink } from '../../api/models';
 import { gamesApi } from '../../api/gamesApi';
 import { get_userId } from '../../api/authStorage';
 import {  Visibility, VISIBILITY} from '../../types/visibility';
@@ -62,9 +62,17 @@ export function GameCreatorDashboard() {
   const [viewTarget, setViewTarget] = useState<Game | null>(null);
   const [previewTarget, setPreviewTarget] = useState<Game | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
+  const [shareTarget, setShareTarget] = useState<Game | null>(null);
+  const [shareLinks, setShareLinks] = useState<GameShareLink[]>([]);
+  const [generatedShareLink, setGeneratedShareLink] = useState<GameShareLink | null>(null);
+  const [shareExpiresInDays, setShareExpiresInDays] = useState('7');
+  const [shareMaxUses, setShareMaxUses] = useState('10');
+  const [isShareLoading, setIsShareLoading] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement | null>(null);
-  const {toastPromise} = useToast();
+  const shareDialogBodyRef = useRef<HTMLDivElement | null>(null);
+  const {toast, toastPromise} = useToast();
 
   const resizeSummaryTextarea = (textarea: HTMLTextAreaElement | null) => {
     if (!textarea) return;
@@ -117,6 +125,160 @@ export function GameCreatorDashboard() {
     setIsDialogOpen(false);
     setActiveGame(null);
     setError(null);
+  };
+
+  const isShareLinkVisible = (link: GameShareLink) => {
+    return !link.revoked_at && new Date(link.expires_at).getTime() > Date.now();
+  };
+
+  const visibleShareLinks = (links: GameShareLink[]) => links.filter(isShareLinkVisible);
+
+  const openShareDialog = async (game: Game) => {
+    setShareTarget(game);
+    setGeneratedShareLink(null);
+    setShareExpiresInDays('7');
+    setShareMaxUses('10');
+    setShareError(null);
+    setIsShareLoading(true);
+
+    try {
+      const links = await gamesApi.listShareLinks(game.id);
+      setShareLinks(visibleShareLinks(links));
+    } catch (err) {
+      setShareError((err as Error)?.message || 'Unable to load share links.');
+      setShareLinks([]);
+    } finally {
+      setIsShareLoading(false);
+    }
+  };
+
+  const closeShareDialog = () => {
+    setShareTarget(null);
+    setGeneratedShareLink(null);
+    setShareLinks([]);
+    setShareError(null);
+  };
+
+  useEffect(() => {
+    if (!shareTarget) {
+      return;
+    }
+
+    const pruneExpiredLinks = () => {
+      setShareLinks((prev) => visibleShareLinks(prev));
+      setGeneratedShareLink((prev) => (prev && isShareLinkVisible(prev) ? prev : null));
+    };
+
+    pruneExpiredLinks();
+    const timer = window.setInterval(pruneExpiredLinks, 30000);
+    return () => window.clearInterval(timer);
+  }, [shareTarget]);
+
+  const handleCreateShareLink = async () => {
+    if (!shareTarget) {
+      return;
+    }
+
+    const expiresInDays = Number(shareExpiresInDays) || 7;
+    const maxUses = shareMaxUses.trim() === '' ? null : Number(shareMaxUses);
+    setIsShareLoading(true);
+    setShareError(null);
+
+    try {
+      const link = await toastPromise(gamesApi.createShareLink(shareTarget.id, {
+        role: 'purchaser',
+        expires_in_days: expiresInDays,
+        max_uses: maxUses,
+      }), {
+        loading: 'Creating share link...',
+        success: 'Share link created.',
+        error: (e) =>
+          (e as any)?.response?.data?.detail ||
+          (e as Error)?.message ||
+          'Failed to create share link.',
+      });
+      setGeneratedShareLink(link);
+      setShareLinks((prev) => visibleShareLinks([link, ...prev]));
+    } catch (err) {
+      setShareError((err as Error)?.message || 'Unable to create share link.');
+    } finally {
+      setIsShareLoading(false);
+    }
+  };
+
+  const handleCopyShareLink = async (url?: string) => {
+    if (!url) {
+      toast({ title: 'Copy failed', description: 'No share link is available to copy.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        let copyEventHandled = false;
+        const handleCopy = (event: ClipboardEvent) => {
+          event.preventDefault();
+          event.clipboardData?.setData('text/plain', url);
+          copyEventHandled = true;
+        };
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.top = '0';
+        textarea.style.left = '0';
+        textarea.style.width = '1px';
+        textarea.style.height = '1px';
+        textarea.style.padding = '0';
+        textarea.style.border = '0';
+        textarea.style.opacity = '0.01';
+        const container = shareDialogBodyRef.current ?? document.body;
+        container.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+
+        document.addEventListener('copy', handleCopy);
+        const copied = document.execCommand('copy');
+        document.removeEventListener('copy', handleCopy);
+        container.removeChild(textarea);
+
+        if (!copied || !copyEventHandled) {
+          throw new Error('Copy command failed');
+        }
+      }
+      toast({ title: 'Copied', description: 'Share link copied to clipboard.', variant: 'success' });
+    } catch {
+      toast({ title: 'Copy failed', description: 'Select the link and copy it manually.', variant: 'destructive' });
+    }
+  };
+
+  const handleRevokeShareLink = async (link: GameShareLink) => {
+    if (!shareTarget) {
+      return;
+    }
+
+    setIsShareLoading(true);
+    setShareError(null);
+    try {
+      await toastPromise(gamesApi.revokeShareLink(shareTarget.id, link.id), {
+        loading: 'Revoking share link...',
+        success: 'Share link revoked.',
+        error: (e) =>
+          (e as any)?.response?.data?.detail ||
+          (e as Error)?.message ||
+          'Failed to revoke share link.',
+      });
+      setShareLinks((prev) => prev.filter((shareLink) => shareLink.id !== link.id));
+      if (generatedShareLink?.id === link.id) {
+        setGeneratedShareLink(null);
+      }
+    } catch (err) {
+      setShareError((err as Error)?.message || 'Unable to revoke share link.');
+    } finally {
+      setIsShareLoading(false);
+    }
   };
 
   const handleDialogSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -257,7 +419,7 @@ export function GameCreatorDashboard() {
             No editable games found. Use Make Game to create your first game.
           </div>
         ) : (
-          <div className="space-y-4">
+          <div ref={shareDialogBodyRef} className="relative space-y-4">
             {games.map((game) => (
               <Card key={game.id} className="border-border">
                 <CardContent className="space-y-4">
@@ -281,6 +443,10 @@ export function GameCreatorDashboard() {
                       <Button variant="outline" size="sm" onClick={() => setPreviewTarget(game)}>
                         <BookOpen className="h-3.5 w-3.5" />
                         Preview
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openShareDialog(game)}>
+                        <Link2 className="h-3.5 w-3.5" />
+                        Share
                       </Button>
                       <Button variant="secondary" size="sm" onClick={() => openEditDialog(game)}>
                         <Edit3 className="h-3.5 w-3.5" />
@@ -394,6 +560,119 @@ export function GameCreatorDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <Dialog open={Boolean(shareTarget)} onOpenChange={(open) => {
+        if (!open) {
+          closeShareDialog();
+        }
+      }}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:max-w-2xl sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="pr-8 leading-6 break-words">Share {shareTarget?.game_name}</DialogTitle>
+            <DialogDescription>
+              Create a link that adds this game to a friend's library.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="share-expires">Expires in days</Label>
+                <Input
+                  id="share-expires"
+                  min="1"
+                  max="90"
+                  type="number"
+                  value={shareExpiresInDays}
+                  onChange={(event) => setShareExpiresInDays(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="share-max-uses">Max uses</Label>
+                <Input
+                  id="share-max-uses"
+                  min="1"
+                  type="number"
+                  value={shareMaxUses}
+                  onChange={(event) => setShareMaxUses(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <Button type="button" onClick={handleCreateShareLink} disabled={isShareLoading} className="w-full sm:w-auto">
+              <Link2 className="h-4 w-4" />
+              Generate Link
+            </Button>
+
+            {generatedShareLink?.url ? (
+              <div className="grid gap-2 rounded-md border border-border bg-background p-3">
+                <Label htmlFor="generated-share-link">Share link</Label>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <Input
+                    id="generated-share-link"
+                    className="min-w-0 text-xs sm:text-sm"
+                    readOnly
+                    value={generatedShareLink.url}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => handleCopyShareLink(generatedShareLink.url)}
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {shareError ? (
+              <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
+                {shareError}
+              </div>
+            ) : null}
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Existing links</h3>
+              {isShareLoading && shareLinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Loading links...</p>
+              ) : shareLinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No share links yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {shareLinks.map((link) => (
+                    <div key={link.id} className="grid gap-3 rounded-md border border-border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <div className="min-w-0 text-sm">
+                        <p className="break-all font-medium leading-5 sm:truncate">{link.url}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          {link.uses_count}/{link.max_uses ?? 'unlimited'} uses · expires {new Date(link.expires_at).toLocaleDateString()}
+                          {link.revoked_at ? ' · revoked' : ''}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => handleCopyShareLink(link.url)}>
+                          Copy
+                        </Button>
+                        {!link.revoked_at ? (
+                          <Button type="button" variant="destructive" size="sm" className="w-full sm:w-auto" onClick={() => handleRevokeShareLink(link)}>
+                            Revoke
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={closeShareDialog}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

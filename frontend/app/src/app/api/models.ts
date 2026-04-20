@@ -33,6 +33,42 @@ export interface GameCreate {
 	visibility: Visibility;
 }
 
+export interface GameShareLink {
+	id: UUID;
+	game_id: UUID;
+	token: string;
+	url?: string;
+	role: string;
+	expires_at: DateTime;
+	max_uses?: number | null;
+	uses_count: number;
+	revoked_at?: DateTime | null;
+	created_at: DateTime;
+}
+
+export interface GameShareLinkCreate {
+	role?: string;
+	expires_in_days?: number;
+	max_uses?: number | null;
+}
+
+export interface GameSharePreview {
+	game_id: UUID;
+	game_name: string;
+	game_summary?: string | null;
+	role: string;
+	expires_at: DateTime;
+	is_expired: boolean;
+	is_revoked: boolean;
+	is_usable: boolean;
+}
+
+export interface GameShareAcceptResult {
+	game_id: UUID;
+	role: string;
+	status: string;
+}
+
 export interface ContentPack {
 	id: UUID;
 	game_id: UUID;

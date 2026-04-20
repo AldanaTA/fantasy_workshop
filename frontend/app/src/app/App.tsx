@@ -1,12 +1,35 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { Login } from './components/Login';
 import { MainApp } from './components/MainApp';
+import { GameInvitePage } from './components/GameInvitePage';
 import { TokenPair } from './api/models';
 import { authApi } from './api/authApi';
 import { setCurrent,clearCurrent, get_refresh_token } from './api/authStorage';
-import { Save } from 'lucide-react';
 import { ToastProvider } from './components/ui/toastProvider';
+
+interface LoginRouteProps {
+  tokens: TokenPair | null;
+  onLogin: (tokens: TokenPair) => void;
+}
+
+function getSafeRedirect(redirect: string | null) {
+  if (redirect?.startsWith('/') && !redirect.startsWith('//')) {
+    return redirect;
+  }
+  return '/app';
+}
+
+function LoginRoute({ tokens, onLogin }: LoginRouteProps) {
+  const [searchParams] = useSearchParams();
+  const redirect = getSafeRedirect(searchParams.get('redirect'));
+
+  return tokens ? (
+    <Navigate to={redirect} replace />
+  ) : (
+    <Login onLogin={onLogin} />
+  );
+}
 
 function App() {
   const [tokens, setTokens] = useState<TokenPair | null>(null);
@@ -69,13 +92,11 @@ function App() {
       <Routes>
         <Route
           path="/"
-          element={
-            tokens ? (
-              <Navigate to="/app" replace />
-            ) : (
-              <Login onLogin={handleLogin} />
-            )
-          }
+          element={<LoginRoute tokens={tokens} onLogin={handleLogin} />}
+        />
+        <Route
+          path="/game-invite/:token"
+          element={<GameInvitePage tokens={tokens} />}
         />
         <Route
           path="/app"
