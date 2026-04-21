@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, func
+from sqlalchemy import select, func
 from uuid import UUID
 
 from app.routers._crud import crud_router
@@ -16,6 +16,24 @@ router = crud_router(
     out_schema=ContentPackOut,
     prefix="/content/packs",
     require_auth=True)
+
+def _enum_value(value) -> str:
+    return getattr(value, "value", str(value))
+
+async def _game_access(game: Game, user_id: UUID, db: AsyncSession) -> tuple[bool, bool]:
+    role = await db.scalar(
+        select(UserGameRole.role).where(
+            UserGameRole.user_id == user_id,
+            UserGameRole.game_id == game.id,
+        )
+    )
+    has_explicit_access = game.owner_user_id == user_id or role is not None
+    can_edit = game.owner_user_id == user_id or _enum_value(role) == "editor"
+    has_game_access = has_explicit_access or _enum_value(game.visibility) == "public"
+    return can_edit, has_explicit_access, has_game_access
+
+def _pack_is_player_visible(pack: ContentPack) -> bool:
+    return _enum_value(pack.status) == "published" and _enum_value(pack.visibility) in {"game", "public"}
 
 @router.delete("userdel/{pack_id}", dependencies=[Depends(require_user)])
 async def delete_content_pack(
@@ -36,14 +54,8 @@ async def delete_content_pack(
     if not game:
         raise HTTPException(404, "Game not found")
 
-    has_editor_role = await db.scalar(
-        select(exists().where(
-            UserGameRole.user_id == user_id,
-            UserGameRole.game_id == content_pack.game_id,
-            UserGameRole.role == "editor",
-        ))
-    )
-    if not (game.owner_user_id == user_id or has_editor_role):
+    can_edit, _, _ = await _game_access(game, user_id, db)
+    if not can_edit:
         raise HTTPException(403, "Access denied")
 
     await db.delete(content_pack)
@@ -64,14 +76,8 @@ async def list_packs_by_game(
     if not game:
         raise HTTPException(404, "Game not found")
 
-    has_editor_role = await db.scalar(
-        select(exists().where(
-            UserGameRole.user_id == user_id,
-            UserGameRole.game_id == game_id,
-            UserGameRole.role == "editor",
-        ))
-    )
-    if not (game.owner_user_id == user_id or has_editor_role):
+    can_edit, has_explicit_access, has_game_access = await _game_access(game, user_id, db)
+    if not has_game_access:
         raise HTTPException(403, "Access denied")
 
     result = await db.execute(
@@ -81,4 +87,7 @@ async def list_packs_by_game(
         .limit(limit)
         .offset(offset)
     )
-    return list(result.scalars().all())
+    packs = list(result.scalars().all())
+    if can_edit or has_explicit_access:
+        return packs
+    return [pack for pack in packs if _pack_is_player_visible(pack)]

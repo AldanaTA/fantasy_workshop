@@ -38,6 +38,7 @@ import { get_userId } from '../../api/authStorage';
 import {  Visibility, VISIBILITY} from '../../types/visibility';
 import {ViewGamePacks} from './ViewGamePacks';
 import { GameRulesRenderer } from '../content/GameRulesRenderer';
+import type { UUID } from '../../types/misc';
 
 interface FormState {
   game_name: string;
@@ -51,7 +52,15 @@ const emptyForm: FormState = {
   visibility: VISIBILITY.PRIVATE,
 };
 
-export function GameCreatorDashboard() {
+interface GameCreatorDashboardProps {
+  initialViewGameId?: UUID | null;
+  onInitialViewHandled?: () => void;
+}
+
+export function GameCreatorDashboard({
+  initialViewGameId = null,
+  onInitialViewHandled,
+}: GameCreatorDashboardProps) {
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +107,18 @@ export function GameCreatorDashboard() {
   useEffect(() => {
     loadGames();
   }, []);
+
+  useEffect(() => {
+    if (!initialViewGameId || isLoading) {
+      return;
+    }
+
+    const matchedGame = games.find((game) => game.id === initialViewGameId) ?? null;
+    if (matchedGame) {
+      setViewTarget(matchedGame);
+    }
+    onInitialViewHandled?.();
+  }, [games, initialViewGameId, isLoading, onInitialViewHandled]);
 
   useEffect(() => {
     resizeSummaryTextarea(summaryRef.current);

@@ -1,4 +1,4 @@
-import { BookOpen, Edit3, Eye, Link2, PackageOpen, Trash2 } from 'lucide-react';
+import { BookOpen, Edit3, Eye, Link2, PackageOpen, Settings2, Trash2 } from 'lucide-react';
 
 import type { LibraryGame } from '../../api/models';
 import { Badge } from '../ui/badge';
@@ -16,6 +16,7 @@ export type ViewGamesProps = {
   emptyDescription?: string;
   onOpen?: (game: LibraryGame) => void;
   onPreview?: (game: LibraryGame) => void;
+  onManageGame?: (game: LibraryGame) => void;
   onManagePacks?: (game: LibraryGame) => void;
   onShare?: (game: LibraryGame) => void;
   onEdit?: (game: LibraryGame) => void;
@@ -40,6 +41,7 @@ export function ViewGames({
   emptyDescription = 'Games you create or accept from share links will appear here.',
   onOpen,
   onPreview,
+  onManageGame,
   onManagePacks,
   onShare,
   onEdit,
@@ -105,7 +107,7 @@ export function ViewGames({
                         onClick={() => onOpen(game)}
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        Open
+                        View Rules
                       </Button>
                     ) : null}
                     {onPreview ? (
@@ -118,6 +120,18 @@ export function ViewGames({
                       >
                         <BookOpen className="h-3.5 w-3.5" />
                         Preview
+                      </Button>
+                    ) : null}
+                    {showEditorActions && onManageGame ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="min-h-[44px] min-w-[44px]"
+                        onClick={() => onManageGame(game)}
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                        Creator Tools
                       </Button>
                     ) : null}
                     {showEditorActions && onManagePacks ? (

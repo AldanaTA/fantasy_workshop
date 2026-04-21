@@ -4,7 +4,6 @@ import { contentApi } from '../../api/contentApi';
 import { contentCategoriesApi } from '../../api/contentCategoriesApi';
 import { contentPacksApi } from '../../api/contentPacksApi';
 import type { Content, ContentCategory, ContentPack, ContentVersion, ContentWithActiveVersion } from '../../api/models';
-import { STATUS } from '../../types/status';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -96,6 +95,7 @@ export function GameRulesRenderer({
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [internalPackIds, setInternalPackIds] = useState<string[]>([]);
   const [internalFilters, setInternalFilters] = useState<ContentRulesFilters>({});
+  const packControllers = useRef<Record<string, AbortController>>({});
   const categoryControllers = useRef<Record<string, AbortController>>({});
 
   const activeFilters = filters ?? internalFilters;
@@ -124,11 +124,7 @@ export function GameRulesRenderer({
 
       try {
         const packs = await contentPacksApi.listByGame(gameId, PACK_LIMIT, 0, { signal: controller.signal });
-        const visiblePacks = visibility === 'player'
-          ? packs.filter((pack) => pack.status === STATUS.PUBLISHED)
-          : packs;
-
-        setState({ packs: visiblePacks, isLoading: false, error: null });
+        setState({ packs, isLoading: false, error: null });
       } catch (err) {
         if (isAbortError(err)) return;
         setState({ packs: [], isLoading: false, error: (err as Error)?.message || 'Unable to load rules.' });
@@ -144,6 +140,8 @@ export function GameRulesRenderer({
 
   useEffect(() => {
     return () => {
+      Object.values(packControllers.current).forEach((controller) => controller.abort());
+      packControllers.current = {};
       Object.values(categoryControllers.current).forEach((controller) => controller.abort());
       categoryControllers.current = {};
     };
@@ -203,6 +201,10 @@ export function GameRulesRenderer({
           hasLoaded: true,
         },
       }));
+    } finally {
+      if (packControllers.current[pack.id]?.signal === signal) {
+        delete packControllers.current[pack.id];
+      }
     }
   }, []);
 
@@ -213,17 +215,14 @@ export function GameRulesRenderer({
     });
     if (!missingPackIds.length) return;
 
-    const controller = new AbortController();
-
     missingPackIds.forEach((packId) => {
       const pack = state.packs.find((candidate) => candidate.id === packId);
       if (!pack) return;
+      packControllers.current[packId]?.abort();
+      const controller = new AbortController();
+      packControllers.current[packId] = controller;
       void loadPackCategories(pack, controller.signal);
     });
-
-    return () => {
-      controller.abort();
-    };
   }, [loadPackCategories, packRulebooks, selectedIds, state.packs]);
 
   const loadCategoryContent = useCallback(async (packId: string, category: ContentCategory, force = false) => {

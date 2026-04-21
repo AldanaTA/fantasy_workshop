@@ -8,7 +8,15 @@ import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { ViewGames } from './ViewGames';
 
-export function GameLibraryPage() {
+interface GameLibraryPageProps {
+  onManageGame?: (game: LibraryGame) => void;
+}
+
+const rulesVisibilityForGame = (game: LibraryGame) => (
+  game.role === 'owner' || game.role === 'editor' ? 'gm' : 'player'
+);
+
+export function GameLibraryPage({ onManageGame }: GameLibraryPageProps) {
   const [games, setGames] = useState<LibraryGame[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +73,7 @@ export function GameLibraryPage() {
           <GameRulesRenderer
             gameId={previewTarget.id}
             mode="full"
-            visibility="gm"
+            visibility={rulesVisibilityForGame(previewTarget)}
             packMode="multi"
           />
         </div>
@@ -79,11 +87,11 @@ export function GameLibraryPage() {
       isLoading={isLoading}
       error={error}
       title="Game Library"
-      description="Games you own or have added through invite links."
+      description="Open any game in your library to read its rules. Owners and editors can jump into creator tools from here."
       emptyTitle="Your library is empty"
       emptyDescription="Accept a game invite or create a game to start building your library."
       onOpen={setPreviewTarget}
-      onPreview={setPreviewTarget}
+      onManageGame={onManageGame}
     />
   );
 }

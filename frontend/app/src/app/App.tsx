@@ -102,7 +102,7 @@ function App() {
           path="/app"
           element={
             tokens ? (
-              <MainApp tokens={tokens} onLogout={handleLogout} />
+              <MainApp tokens={tokens} onLogout={handleLogout} initialSection="creator" />
             ) : (
               <Navigate to="/" replace />
             )
@@ -112,7 +112,7 @@ function App() {
           path="/library"
           element={
             tokens ? (
-              <MainApp tokens={tokens} onLogout={handleLogout} initialRole="player" />
+              <MainApp tokens={tokens} onLogout={handleLogout} initialSection="library" />
             ) : (
               <Navigate to="/" replace />
             )

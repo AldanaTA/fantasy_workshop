@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, func, select
 from uuid import UUID
 from redis.asyncio import Redis
 
@@ -96,17 +96,20 @@ async def require_category_view_access(category_id: UUID, user, db: AsyncSession
         raise HTTPException(404, "game not found")
 
     user_id = user_id_from_claims(user)
-    has_editor_role = await db.scalar(
-        select(exists().where(
+    role = await db.scalar(
+        select(UserGameRole.role).where(
             UserGameRole.user_id == user_id,
             UserGameRole.game_id == game.id,
-            UserGameRole.role == "editor",
-        ))
+        )
     )
-    if game.owner_user_id == user_id or has_editor_role:
+    has_explicit_access = game.owner_user_id == user_id or role is not None
+    can_edit = game.owner_user_id == user_id or enum_value(role) == "editor"
+    has_game_access = has_explicit_access or enum_value(game.visibility) == "public"
+
+    if can_edit or has_explicit_access:
         return category
 
-    if enum_value(pack.status) == "published" and enum_value(pack.visibility) == "public":
+    if has_game_access and enum_value(pack.status) == "published" and enum_value(pack.visibility) in {"game", "public"}:
         return category
 
     raise HTTPException(403, "Access denied")
@@ -121,17 +124,20 @@ async def require_pack_view_access(pack_id: UUID, user, db: AsyncSession) -> Con
         raise HTTPException(404, "game not found")
 
     user_id = user_id_from_claims(user)
-    has_editor_role = await db.scalar(
-        select(exists().where(
+    role = await db.scalar(
+        select(UserGameRole.role).where(
             UserGameRole.user_id == user_id,
             UserGameRole.game_id == game.id,
-            UserGameRole.role == "editor",
-        ))
+        )
     )
-    if game.owner_user_id == user_id or has_editor_role:
+    has_explicit_access = game.owner_user_id == user_id or role is not None
+    can_edit = game.owner_user_id == user_id or enum_value(role) == "editor"
+    has_game_access = has_explicit_access or enum_value(game.visibility) == "public"
+
+    if can_edit or has_explicit_access:
         return pack
 
-    if enum_value(pack.status) == "published" and enum_value(pack.visibility) == "public":
+    if has_game_access and enum_value(pack.status) == "published" and enum_value(pack.visibility) in {"game", "public"}:
         return pack
 
     raise HTTPException(403, "Access denied")

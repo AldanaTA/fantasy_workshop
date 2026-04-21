@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, func
+from sqlalchemy import select, func
 from uuid import UUID
 
 from app.routers._crud import crud_router
@@ -16,6 +16,24 @@ router = crud_router(
     out_schema=ContentCategoryOut,
     prefix="/content/categories",
     require_auth=True)
+
+def _enum_value(value) -> str:
+    return getattr(value, "value", str(value))
+
+async def _game_access(game: Game, user_id: UUID, db: AsyncSession) -> tuple[bool, bool]:
+    role = await db.scalar(
+        select(UserGameRole.role).where(
+            UserGameRole.user_id == user_id,
+            UserGameRole.game_id == game.id,
+        )
+    )
+    has_explicit_access = game.owner_user_id == user_id or role is not None
+    can_edit = game.owner_user_id == user_id or _enum_value(role) == "editor"
+    has_game_access = has_explicit_access or _enum_value(game.visibility) == "public"
+    return can_edit, has_explicit_access, has_game_access
+
+def _pack_is_player_visible(pack: ContentPack) -> bool:
+    return _enum_value(pack.status) == "published" and _enum_value(pack.visibility) in {"game", "public"}
 
 @router.delete("/userdel/{category_id}", dependencies=[Depends(require_user)])
 async def delete_content_category(
@@ -41,14 +59,8 @@ async def delete_content_category(
     if not game:
         raise HTTPException(404, "Game not found")
 
-    has_editor_role = await db.scalar(
-        select(exists().where(
-            UserGameRole.user_id == user_id,
-            UserGameRole.game_id == game.id,
-            UserGameRole.role == "editor",
-        ))
-    )
-    if not (game.owner_user_id == user_id or has_editor_role):
+    can_edit, _, _ = await _game_access(game, user_id, db)
+    if not can_edit:
         raise HTTPException(403, "Only the owner or editors can delete content categories")
 
     await db.delete(category)
@@ -73,14 +85,8 @@ async def list_categories_by_pack(
     if not game:
         raise HTTPException(404, "Game not found")
 
-    has_editor_role = await db.scalar(
-        select(exists().where(
-            UserGameRole.user_id == user_id,
-            UserGameRole.game_id == game.id,
-            UserGameRole.role == "editor",
-        ))
-    )
-    if not (game.owner_user_id == user_id or has_editor_role):
+    can_edit, has_explicit_access, has_game_access = await _game_access(game, user_id, db)
+    if not has_game_access or (not has_explicit_access and not _pack_is_player_visible(pack)):
         raise HTTPException(403, "Access denied")
 
     result = await db.execute(
@@ -108,14 +114,8 @@ async def update_categories_order(
     if not game:
         raise HTTPException(404, "Game not found")
 
-    has_editor_role = await db.scalar(
-        select(exists().where(
-            UserGameRole.user_id == user_id,
-            UserGameRole.game_id == game.id,
-            UserGameRole.role == "editor",
-        ))
-    )
-    if not (game.owner_user_id == user_id or has_editor_role):
+    can_edit, _, _ = await _game_access(game, user_id, db)
+    if not can_edit:
         raise HTTPException(403, "Only the owner or editors can reorder content categories")
 
     result = await db.execute(
