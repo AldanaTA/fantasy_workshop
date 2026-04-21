@@ -54,7 +54,11 @@ CREATE TABLE IF NOT EXISTS content_packs (
   status       content_pack_status NOT NULL DEFAULT 'draft',
 
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT content_packs_id_game_uq UNIQUE (id, game_id),
+  CONSTRAINT content_packs_created_by_role_chk
+    CHECK (created_by_role IN ('owner_editor', 'purchaser'))
 );
 
 CREATE INDEX IF NOT EXISTS content_packs_owner_id_idx ON content_packs(owner_id);
@@ -119,11 +123,15 @@ CREATE TABLE IF NOT EXISTS content (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  CONSTRAINT content_id_pack_uq UNIQUE (id, pack_id)
+  CONSTRAINT content_id_pack_uq UNIQUE (id, pack_id),
+  CONSTRAINT content_source_authority_chk
+    CHECK (source_authority IN ('owner_editor', 'purchaser'))
 );
 
 CREATE INDEX IF NOT EXISTS content_pack_id_idx ON content(pack_id);
 CREATE INDEX IF NOT EXISTS content_created_by_user_id_idx ON content(created_by_user_id);
+CREATE INDEX IF NOT EXISTS content_created_by_authority_idx
+  ON content(pack_id, created_by_user_id, source_authority);
 
 -- CONTENT CATEGORY MEMBERSHIPS
 -- A content item may appear in many categories, but only once per category.
@@ -233,5 +241,9 @@ CREATE TABLE IF NOT EXISTS content_pack_permissions (
 
 CREATE INDEX IF NOT EXISTS content_pack_permissions_user_id_idx
   ON content_pack_permissions(user_id);
+CREATE INDEX IF NOT EXISTS content_pack_permissions_pack_user_idx
+  ON content_pack_permissions(pack_id, user_id);
+CREATE INDEX IF NOT EXISTS content_pack_permissions_manage_pack_idx
+  ON content_pack_permissions(pack_id, can_manage_pack);
 
 COMMIT;

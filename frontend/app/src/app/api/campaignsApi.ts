@@ -1,9 +1,14 @@
-import { API_CONFIG } from './config';
+import { API_CONFIG } from './apiConfig';
 import type {
   Campaign,
   UserCampaignRole,
   Character,
   CampaignCharacter,
+  CampaignCharacterLoad,
+  CampaignCharacterValidation,
+  CampaignNote,
+  CampaignNoteRevision,
+  CampaignAllowedPack,
   CampaignContentVersion,
   CampaignEvent,
   CampaignCharacterStateSnapshot,
@@ -54,6 +59,35 @@ export const campaignsApi = {
   listCampaignCharacters: (campaignId: string, token?: string) => request<CampaignCharacter[]>(`/${campaignId}/characters`, { method: 'GET', headers: authHeaders(token) }),
   removeCampaignCharacter: (campaignId: string, campaignCharacterId: string, token?: string) =>
     request<void>(`/${campaignId}/characters/${campaignCharacterId}`, { method: 'DELETE', headers: authHeaders(token) }),
+  loadCampaignCharacter: (campaignId: string, campaignCharacterId: string, token?: string) =>
+    request<CampaignCharacterLoad>(`/${campaignId}/characters/${campaignCharacterId}/load`, { method: 'GET', headers: authHeaders(token) }),
+  validateCampaignCharacter: (campaignId: string, campaignCharacterId: string, token?: string) =>
+    request<CampaignCharacterValidation>(`/${campaignId}/characters/${campaignCharacterId}/validation`, { method: 'GET', headers: authHeaders(token) }),
+  saveCampaignCharacter: (campaignId: string, campaignCharacterId: string, payload: { sheet: Record<string, unknown>; campaign_overrides?: Record<string, unknown> }, token?: string) =>
+    request<CampaignCharacterLoad>(`/${campaignId}/characters/${campaignCharacterId}/save`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token) }),
+
+  // notes
+  listNotes: (campaignId: string, token?: string) => request<CampaignNote[]>(`/${campaignId}/notes`, { method: 'GET', headers: authHeaders(token) }),
+  createNote: (campaignId: string, payload: Partial<CampaignNote>, token?: string) =>
+    request<CampaignNote>(`/${campaignId}/notes`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
+  getNote: (campaignId: string, noteId: string, token?: string) =>
+    request<CampaignNote>(`/${campaignId}/notes/${noteId}`, { method: 'GET', headers: authHeaders(token) }),
+  patchNote: (campaignId: string, noteId: string, payload: Record<string, unknown>, token?: string) =>
+    request<CampaignNote>(`/${campaignId}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify(payload), headers: authHeaders(token) }),
+  deleteNote: (campaignId: string, noteId: string, token?: string) =>
+    request<void>(`/${campaignId}/notes/${noteId}`, { method: 'DELETE', headers: authHeaders(token) }),
+  restoreNote: (campaignId: string, noteId: string, token?: string) =>
+    request<CampaignNote>(`/${campaignId}/notes/${noteId}/restore`, { method: 'POST', headers: authHeaders(token) }),
+  listNoteRevisions: (campaignId: string, noteId: string, token?: string) =>
+    request<CampaignNoteRevision[]>(`/${campaignId}/notes/${noteId}/revisions`, { method: 'GET', headers: authHeaders(token) }),
+
+  // allowed packs
+  listAllowedPacks: (campaignId: string, token?: string) =>
+    request<CampaignAllowedPack[]>(`/${campaignId}/allowed-packs`, { method: 'GET', headers: authHeaders(token) }),
+  allowPack: (campaignId: string, packId: string, token?: string) =>
+    request<CampaignAllowedPack>(`/${campaignId}/allowed-packs/${packId}`, { method: 'PUT', headers: authHeaders(token) }),
+  revokePack: (campaignId: string, packId: string, token?: string) =>
+    request<void>(`/${campaignId}/allowed-packs/${packId}`, { method: 'DELETE', headers: authHeaders(token) }),
 
   // pins
   upsertPin: (campaignId: string, contentId: string, payload: Partial<CampaignContentVersion>, token?: string) =>

@@ -1,4 +1,4 @@
-import { API_CONFIG } from './config';
+import { API_CONFIG } from './apiConfig';
 import type { AuthIdentity } from './models';
 
 const API_URL = API_CONFIG.VITE_API_BASE + '/' + API_CONFIG.VITE_AUTH_IDENTITIES

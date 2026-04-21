@@ -9,7 +9,14 @@ from app.conf import settings
 from app.helpers import new_id, require_user
 from app.helpers_cache import cache_get_json, cache_set_json
 from app.helpers_cache_index import cache_index_add, cache_index_invalidate
-from app.routers.deps import require_campaign_role, CAN_WRITE_EVENTS, CAN_WRITE_SNAPSHOTS, CAN_READ_CAMPAIGN, ROLE_OWNER
+from app.routers.deps import (
+    require_campaign_role,
+    CAN_MANAGE_CAMPAIGN,
+    CAN_WRITE_EVENTS,
+    CAN_WRITE_SNAPSHOTS,
+    CAN_READ_CAMPAIGN,
+    ROLE_OWNER,
+)
 
 from app.schema.models import (
     Campaign, UserCampaignRole, Character, CampaignCharacter,
@@ -41,7 +48,8 @@ async def require_gm_or_co_gm(campaign_id: UUID, auth: dict = Depends(require_us
         UserCampaignRole.user_id == user_id,
     )
     role = (await db.execute(q)).scalar_one_or_none()
-    if role != "Co-GM":
+    role_value = getattr(role, "value", str(role)) if role is not None else None
+    if role_value != "co_gm":
         raise HTTPException(403, "you are not an owner or co-gm")
 
 # cache keys/indexes for events
@@ -53,30 +61,30 @@ def key_events(campaign_id: UUID, limit: int, offset: int) -> str:
 
 # ---- Campaigns ----
 @router.post("", response_model=CampaignOut, dependencies=[Depends(require_user)])
-async def create_campaign(payload: CampaignCreate, db: AsyncSession = Depends(get_db)):
-    row = Campaign(id=new_id(), **payload.model_dump())
+async def create_campaign(
+    payload: CampaignCreate,
+    user=Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    data = payload.model_dump()
+    data["owner_user_id"] = UUID(user["uid"])
+    row = Campaign(id=new_id(), **data)
     db.add(row)
     await db.commit()
     await db.refresh(row)
     return row
 
-@router.get("/{campaign_id}", response_model=CampaignOut, dependencies=[Depends(require_user)])
-async def get_campaign(campaign_id: UUID, db: AsyncSession = Depends(get_db)):
-    row = await db.get(Campaign, campaign_id)
-    if not row:
-        raise HTTPException(404, "campaign not found")
-    return row
-
 # -- game master campaings --
 @router.get("/gm", response_model=list[CampaignOut], dependencies=[Depends(require_user)])
-async def list_gm_campaigns(db: AsyncSession = Depends(get_db), user_id: UUID = Depends(require_user)):
+async def list_gm_campaigns(db: AsyncSession = Depends(get_db), user=Depends(require_user)):
+    user_id = UUID(user["uid"])
     q = select(Campaign).where(
         or_(
             Campaign.owner_user_id == user_id,
             Campaign.id.in_(
                 select(UserCampaignRole.campaign_id).where(
                     UserCampaignRole.user_id == user_id,
-                    UserCampaignRole.role == "Co-GM"
+                    UserCampaignRole.role == "co_gm"
                 )
             )
         )
@@ -86,10 +94,18 @@ async def list_gm_campaigns(db: AsyncSession = Depends(get_db), user_id: UUID = 
 
 # -- get player campaigns --
 @router.get("/player", response_model=list[CampaignOut], dependencies=[Depends(require_user)])
-async def list_player_campaigns(db: AsyncSession = Depends(get_db), user_id: UUID = Depends(require_user)):
+async def list_player_campaigns(db: AsyncSession = Depends(get_db), user=Depends(require_user)):
+    user_id = UUID(user["uid"])
     q = select(Campaign).join(UserCampaignRole).where(UserCampaignRole.user_id == user_id, UserCampaignRole.role == "player")
     res = await db.execute(q)
     return list(res.scalars().all())
+
+@router.get("/{campaign_id}", response_model=CampaignOut, dependencies=[Depends(require_user)])
+async def get_campaign(campaign_id: UUID, db: AsyncSession = Depends(get_db)):
+    row = await db.get(Campaign, campaign_id)
+    if not row:
+        raise HTTPException(404, "campaign not found")
+    return row
 
 @router.patch("/{campaign_id}", response_model=CampaignOut, dependencies=[Depends(require_user), Depends(require_gm_or_co_gm)])
 async def patch_campaign(campaign_id: UUID, patch: dict, db: AsyncSession = Depends(get_db)):
@@ -145,8 +161,14 @@ async def delete_role(campaign_id: UUID, user_id: UUID, db: AsyncSession = Depen
 
 # ---- Characters ----
 @router.post("/characters", response_model=CharacterOut, dependencies=[Depends(require_user)])
-async def create_character(payload: CharacterCreate, db: AsyncSession = Depends(get_db)):
-    row = Character(id=new_id(), **payload.model_dump())
+async def create_character(
+    payload: CharacterCreate,
+    user=Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    data = payload.model_dump()
+    data["user_id"] = UUID(user["uid"])
+    row = Character(id=new_id(), **data)
     db.add(row)
     await db.commit()
     await db.refresh(row)

@@ -106,16 +106,23 @@ CREATE TABLE IF NOT EXISTS campaign_notes (
   version_num INT NOT NULL DEFAULT 1,
   archived_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT campaign_notes_body_object_chk CHECK (jsonb_typeof(body) = 'object'),
+  CONSTRAINT campaign_notes_version_num_positive_chk CHECK (version_num >= 1)
 );
 
 CREATE INDEX IF NOT EXISTS campaign_notes_campaign_updated_idx
   ON campaign_notes(campaign_id, archived_at, updated_at DESC);
+CREATE INDEX IF NOT EXISTS campaign_notes_campaign_archived_updated_id_idx
+  ON campaign_notes(campaign_id, archived_at, updated_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS campaign_note_revisions (
   note_id UUID NOT NULL REFERENCES campaign_notes(id) ON DELETE CASCADE,
   version_num INT NOT NULL,
+  title TEXT NOT NULL,
   body JSONB NOT NULL DEFAULT '{"type":"doc","content":[]}'::jsonb,
+  visibility campaign_note_visibility NOT NULL DEFAULT 'gm',
   updated_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT campaign_note_revisions_pk PRIMARY KEY (note_id, version_num)
@@ -123,14 +130,25 @@ CREATE TABLE IF NOT EXISTS campaign_note_revisions (
 
 CREATE INDEX IF NOT EXISTS campaign_note_revisions_note_version_idx
   ON campaign_note_revisions(note_id, version_num DESC);
+CREATE INDEX IF NOT EXISTS campaign_note_revisions_note_created_id_idx
+  ON campaign_note_revisions(note_id, created_at DESC, version_num DESC);
 
 CREATE TABLE IF NOT EXISTS campaign_allowed_packs (
   campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
   pack_id UUID NOT NULL REFERENCES content_packs(id) ON DELETE CASCADE,
+  game_id UUID NOT NULL,
   allowed_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   revoked_at TIMESTAMPTZ,
-  CONSTRAINT campaign_allowed_packs_pk PRIMARY KEY (campaign_id, pack_id)
+  CONSTRAINT campaign_allowed_packs_pk PRIMARY KEY (campaign_id, pack_id),
+  CONSTRAINT campaign_allowed_packs_campaign_game_fk
+    FOREIGN KEY (campaign_id, game_id)
+    REFERENCES campaigns(id, game_id)
+    ON DELETE CASCADE,
+  CONSTRAINT campaign_allowed_packs_pack_game_fk
+    FOREIGN KEY (pack_id, game_id)
+    REFERENCES content_packs(id, game_id)
+    ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS campaign_allowed_packs_active_campaign_idx
@@ -138,6 +156,9 @@ CREATE INDEX IF NOT EXISTS campaign_allowed_packs_active_campaign_idx
   WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS campaign_allowed_packs_active_pack_idx
   ON campaign_allowed_packs(pack_id)
+  WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS campaign_allowed_packs_active_lookup_idx
+  ON campaign_allowed_packs(campaign_id, pack_id)
   WHERE revoked_at IS NULL;
 
 -- CAMPAIGN CHAT MESSAGES

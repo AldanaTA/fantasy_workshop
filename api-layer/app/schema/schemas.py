@@ -80,7 +80,6 @@ class GameShareAcceptResult(BaseModel):
 # Content pack
 class ContentPackCreate(BaseModel):
     game_id: UUID
-    owner_id: UUID
     campaign_id: Optional[UUID] = None
     pack_name: str = Field(min_length=1, max_length=200)
     description: Optional[str] = None
@@ -93,6 +92,8 @@ class ContentPackOut(IdOut):
     campaign_id: Optional[UUID]
     pack_name: str
     description: Optional[str]
+    created_by_role: str
+    source_campaign_id: Optional[UUID]
     visibility: str
     status: str
     created_at: datetime
@@ -123,6 +124,8 @@ class ContentCreate(BaseModel):
 
 class ContentOut(IdOut):
     pack_id: UUID
+    created_by_user_id: UUID
+    source_authority: str
     name: str
     summary: Optional[str]
     created_at: datetime
@@ -190,6 +193,7 @@ class ContentVersionCreate(BaseModel):
 
 class ContentVersionOut(IdOut):
     content_id: UUID
+    created_by_user_id: UUID
     version_num: int
     fields: dict[str, Any]
     schema_version: str
@@ -216,7 +220,7 @@ class ContentActiveVersionOut(BaseModel):
 # Campaigns
 class CampaignCreate(BaseModel):
     game_id: UUID
-    owner_user_id: UUID
+    owner_user_id: Optional[UUID] = None
     name: str = Field(min_length=1, max_length=200)
     description: Optional[str] = None
 
@@ -241,7 +245,7 @@ class UserCampaignRoleOut(BaseModel):
 
 # Characters
 class CharacterCreate(BaseModel):
-    user_id: UUID
+    user_id: Optional[UUID] = None
     game_id: UUID
     name: str = Field(min_length=1, max_length=200)
     sheet: dict = Field(default_factory=dict)
@@ -266,6 +270,72 @@ class CampaignCharacterOut(IdOut):
     campaign_overrides: dict
     created_at: datetime
     updated_at: datetime
+
+class CampaignNoteCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    body: dict[str, Any] = Field(default_factory=lambda: {"type": "doc", "content": []})
+    visibility: str = "gm"
+
+class CampaignNoteUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    body: Optional[dict[str, Any]] = None
+    visibility: Optional[str] = None
+    expected_version_num: int = Field(ge=1)
+
+class CampaignNoteOut(IdOut):
+    campaign_id: UUID
+    title: str
+    body: dict[str, Any]
+    visibility: str
+    created_by_user_id: UUID
+    updated_by_user_id: UUID
+    version_num: int
+    archived_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+class CampaignNoteRevisionOut(BaseModel):
+    note_id: UUID
+    version_num: int
+    title: str
+    body: dict[str, Any]
+    visibility: str
+    updated_by_user_id: UUID
+    created_at: datetime
+
+class CampaignAllowedPackOut(BaseModel):
+    campaign_id: UUID
+    pack_id: UUID
+    game_id: UUID
+    allowed_by_user_id: UUID
+    created_at: datetime
+    revoked_at: Optional[datetime]
+
+class ValidationWarning(BaseModel):
+    code: str
+    message: str
+    reference_path: Optional[str] = None
+    content_id: Optional[UUID] = None
+    pack_id: Optional[UUID] = None
+
+class CampaignCharacterValidationOut(BaseModel):
+    status: str
+    save_allowed: bool
+    warnings: list[ValidationWarning]
+
+class CampaignCharacterSaveIn(BaseModel):
+    sheet: dict[str, Any]
+    campaign_overrides: dict[str, Any] = Field(default_factory=dict)
+
+class CampaignCharacterLoadOut(BaseModel):
+    campaign_character: CampaignCharacterOut
+    character: CharacterOut
+    validation: CampaignCharacterValidationOut
+
+class ChatMessagePageOut(BaseModel):
+    items: list["ChatMessageOut"]
+    next_before_created_at: Optional[datetime] = None
+    next_before_id: Optional[UUID] = None
 
 # Chat
 class ChatMessageIn(BaseModel):
@@ -357,6 +427,9 @@ class LoginIn(BaseModel):
     email: str
     display_name_if_new: Optional[str] = None
     password: str = Field(min_length=8, max_length=128)
+
+
+ChatMessagePageOut.model_rebuild()
 
 class RefreshIn(BaseModel):
     refresh_token: str

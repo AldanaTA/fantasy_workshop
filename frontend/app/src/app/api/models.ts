@@ -80,6 +80,8 @@ export interface ContentPack {
 	game_id: UUID;
 	owner_id: UUID;
 	campaign_id?: UUID | null;
+	created_by_role: string;
+	source_campaign_id?: UUID | null;
 	pack_name: string;
 	description?: string | null;
 	visibility: Visibility;
@@ -100,6 +102,8 @@ export interface ContentCategory {
 export interface Content {
 	id: UUID;
 	pack_id: UUID;
+	created_by_user_id: UUID;
+	source_authority: string;
 	name: string;
 	summary?: string | null;
 	created_at: DateTime;
@@ -129,6 +133,7 @@ export interface ContentCategoryMembershipCreate {
 export interface ContentVersion {
 	id: UUID;
 	content_id: UUID;
+	created_by_user_id: UUID;
 	version_num: number;
 	fields: ContentFields;
 	schema_version?: string;
@@ -197,6 +202,59 @@ export interface CampaignCharacter {
 	updated_at: DateTime;
 }
 
+export interface CampaignNote {
+	id: UUID;
+	campaign_id: UUID;
+	title: string;
+	body: JSONDict;
+	visibility: "gm" | "shared" | string;
+	created_by_user_id: UUID;
+	updated_by_user_id: UUID;
+	version_num: number;
+	archived_at?: DateTime | null;
+	created_at: DateTime;
+	updated_at: DateTime;
+}
+
+export interface CampaignNoteRevision {
+	note_id: UUID;
+	version_num: number;
+	title: string;
+	body: JSONDict;
+	visibility: "gm" | "shared" | string;
+	updated_by_user_id: UUID;
+	created_at: DateTime;
+}
+
+export interface CampaignAllowedPack {
+	campaign_id: UUID;
+	pack_id: UUID;
+	game_id: UUID;
+	allowed_by_user_id: UUID;
+	created_at: DateTime;
+	revoked_at?: DateTime | null;
+}
+
+export interface ValidationWarning {
+	code: string;
+	message: string;
+	reference_path?: string | null;
+	content_id?: UUID | null;
+	pack_id?: UUID | null;
+}
+
+export interface CampaignCharacterValidation {
+	status: "valid" | "warning" | string;
+	save_allowed: boolean;
+	warnings: ValidationWarning[];
+}
+
+export interface CampaignCharacterLoad {
+	campaign_character: CampaignCharacter;
+	character: Character;
+	validation: CampaignCharacterValidation;
+}
+
 export interface CampaignChatMessage {
 	id: UUID;
 	campaign_id: UUID;
@@ -204,6 +262,12 @@ export interface CampaignChatMessage {
 	whisper_to?: UUID[] | null;
 	message: string;
 	created_at: DateTime;
+}
+
+export interface CampaignChatMessagePage {
+	items: CampaignChatMessage[];
+	next_before_created_at?: DateTime | null;
+	next_before_id?: UUID | null;
 }
 
 export interface CampaignContentVersion {

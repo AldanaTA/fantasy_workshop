@@ -1,5 +1,5 @@
 import { API_CONFIG } from './apiConfig';
-import type { CampaignChatMessage } from './models';
+import type { CampaignChatMessage, CampaignChatMessagePage } from './models';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CHAT;
 
@@ -30,6 +30,15 @@ export const chatApi = {
 	listMessages: (campaignId: string, limit = 50, offset = 0, token?: string) =>
 		request<CampaignChatMessage[]>(`/campaigns/${campaignId}/messages?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
 
+	listMessagesPage: (campaignId: string, limit = 50, beforeCreatedAt?: string | null, beforeId?: string | null, token?: string) => {
+		const params = new URLSearchParams({ limit: String(limit) });
+		if (beforeCreatedAt && beforeId) {
+			params.set('before_created_at', beforeCreatedAt);
+			params.set('before_id', beforeId);
+		}
+		return request<CampaignChatMessagePage>(`/campaigns/${campaignId}/messages/page?${params.toString()}`, { method: 'GET', headers: authHeaders(token) });
+	},
+
 	connectCampaignChat: (campaignId: string, token?: string) => {
 		const base = wsBase() || (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
 		const t = token ?? localStorage.getItem('authToken');
@@ -38,4 +47,3 @@ export const chatApi = {
 		return ws;
 	},
 };
-

@@ -10,11 +10,13 @@ from app.helpers import require_user, new_id
 from app.helpers_cache import cache_get_json, cache_set_json, cache_get_or_set_json
 from app.helpers_cache_index import cache_index_add, cache_index_invalidate
 from app.schema.models import (
+    ContentAuthority,
     Content,
     ContentActiveVersion,
     ContentCategory,
     ContentCategoryMembership,
     ContentPack,
+    ContentPackPermission,
     ContentVersion,
     Game,
     UserGameRole,
@@ -59,6 +61,8 @@ def serialize_content(row: Content) -> dict:
     return {
         "id": str(row.id),
         "pack_id": str(row.pack_id),
+        "created_by_user_id": str(row.created_by_user_id),
+        "source_authority": row.source_authority,
         "name": row.name,
         "summary": row.summary,
         "created_at": row.created_at.isoformat(),
@@ -69,6 +73,7 @@ def serialize_content_version(row: ContentVersion) -> dict:
     return {
         "id": str(row.id),
         "content_id": str(row.content_id),
+        "created_by_user_id": str(row.created_by_user_id),
         "version_num": row.version_num,
         "fields": row.fields,
         "schema_version": row.schema_version,
@@ -81,6 +86,58 @@ def user_id_from_claims(user) -> UUID:
 
 def enum_value(value) -> str:
     return getattr(value, "value", str(value))
+
+
+async def _game_role_value(game_id: UUID, user_id: UUID, db: AsyncSession) -> str | None:
+    role = await db.scalar(
+        select(UserGameRole.role).where(
+            UserGameRole.user_id == user_id,
+            UserGameRole.game_id == game_id,
+        )
+    )
+    return enum_value(role) if role is not None else None
+
+
+async def _can_manage_pack(pack: ContentPack, user_id: UUID, db: AsyncSession) -> bool:
+    game = await db.get(Game, pack.game_id)
+    if not game:
+        raise HTTPException(404, "game not found")
+    role_value = await _game_role_value(game.id, user_id, db)
+    if game.owner_user_id == user_id or role_value == "editor" or pack.owner_id == user_id:
+        return True
+    permission = await db.get(ContentPackPermission, {"pack_id": pack.id, "user_id": user_id})
+    return bool(permission and permission.can_manage_pack)
+
+
+async def _can_create_content(pack: ContentPack, user_id: UUID, db: AsyncSession) -> bool:
+    if await _can_manage_pack(pack, user_id, db):
+        return True
+    permission = await db.get(ContentPackPermission, {"pack_id": pack.id, "user_id": user_id})
+    return bool(permission and permission.can_create_content)
+
+
+async def _can_edit_content(content: Content, user_id: UUID, db: AsyncSession) -> bool:
+    pack = await db.get(ContentPack, content.pack_id)
+    if not pack:
+        raise HTTPException(404, "pack not found")
+    if await _can_manage_pack(pack, user_id, db):
+        return True
+    if content.created_by_user_id == user_id:
+        return True
+    permission = await db.get(ContentPackPermission, {"pack_id": pack.id, "user_id": user_id})
+    return bool(permission and permission.can_edit_any_content)
+
+
+async def _can_delete_content(content: Content, user_id: UUID, db: AsyncSession) -> bool:
+    pack = await db.get(ContentPack, content.pack_id)
+    if not pack:
+        raise HTTPException(404, "pack not found")
+    if await _can_manage_pack(pack, user_id, db):
+        return True
+    if content.created_by_user_id == user_id:
+        return True
+    permission = await db.get(ContentPackPermission, {"pack_id": pack.id, "user_id": user_id})
+    return bool(permission and permission.can_delete_any_content)
 
 async def require_category_view_access(category_id: UUID, user, db: AsyncSession) -> ContentCategory:
     category = await db.get(ContentCategory, category_id)
@@ -154,16 +211,25 @@ async def invalidate_content_category_indexes(r: Redis, db: AsyncSession, conten
 @router.post("", response_model=ContentOut, dependencies=[Depends(require_user)])
 async def create_content(
     payload: ContentCreate,
+    user=Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
     category = await db.get(ContentCategory, payload.category_id)
     if not category or category.pack_id != payload.pack_id:
         raise HTTPException(400, "category does not belong to the requested pack")
+    pack = await db.get(ContentPack, payload.pack_id)
+    if not pack:
+        raise HTTPException(404, "pack not found")
+    user_id = user_id_from_claims(user)
+    if not await _can_create_content(pack, user_id, db):
+        raise HTTPException(403, "access denied")
 
     row = Content(
         id=new_id(),
         pack_id=payload.pack_id,
+        created_by_user_id=user_id,
+        source_authority=pack.created_by_role or ContentAuthority.owner_editor.value,
         name=payload.name,
         summary=payload.summary,
     )
@@ -389,14 +455,18 @@ async def get_content(content_id: UUID, db: AsyncSession = Depends(get_db)):
 async def patch_content(
     content_id: UUID,
     patch: dict,
+    user=Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
     row = await db.get(Content, content_id)
     if not row:
         raise HTTPException(404, "content not found")
+    user_id = user_id_from_claims(user)
+    if not await _can_edit_content(row, user_id, db):
+        raise HTTPException(403, "access denied")
 
-    for k in ("id", "pack_id", "category_id", "created_at", "updated_at"):
+    for k in ("id", "pack_id", "category_id", "created_at", "updated_at", "created_by_user_id", "source_authority"):
         patch.pop(k, None)
 
     old_pack = row.pack_id
@@ -425,11 +495,15 @@ async def patch_content(
 @router.delete("/{content_id}", status_code=204, dependencies=[Depends(require_user)])
 async def delete_content(
     content_id: UUID,
+    user=Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
     row = await db.get(Content, content_id)
     if row:
+        user_id = user_id_from_claims(user)
+        if not await _can_delete_content(row, user_id, db):
+            raise HTTPException(403, "access denied")
         pack_id = row.pack_id
         res = await db.execute(
             select(ContentCategoryMembership.category_id)
@@ -451,6 +525,7 @@ async def delete_content(
 async def create_version(
     content_id: UUID,
     payload: ContentVersionCreate,
+    user=Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
@@ -460,6 +535,9 @@ async def create_version(
     content = await db.get(Content, content_id)
     if not content:
         raise HTTPException(404, "content not found")
+    user_id = user_id_from_claims(user)
+    if not await _can_edit_content(content, user_id, db):
+        raise HTTPException(403, "access denied")
 
     version_num = payload.version_num
     if version_num is None:
@@ -472,6 +550,7 @@ async def create_version(
     row = ContentVersion(
         id=new_id(),
         content_id=content_id,
+        created_by_user_id=user_id,
         version_num=version_num,
         fields=payload.fields,
     )

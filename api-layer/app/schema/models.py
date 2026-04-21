@@ -52,6 +52,21 @@ class GameRole(PyEnum):
     purchaser = "purchaser"
 
 
+class CampaignRole(PyEnum):
+    co_gm = "co_gm"
+    player = "player"
+
+
+class ContentAuthority(PyEnum):
+    owner_editor = "owner_editor"
+    purchaser = "purchaser"
+
+
+class CampaignNoteVisibility(PyEnum):
+    gm = "gm"
+    shared = "shared"
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -209,6 +224,12 @@ class ContentPack(Base):
 
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    created_by_role: Mapped[str] = mapped_column(Text, nullable=False, default=ContentAuthority.owner_editor.value)
+
+    source_campaign_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True
+    )
+
     visibility: Mapped[ContentPackVisibility] = mapped_column(
         Enum(ContentPackVisibility, name="content_pack_visibility", native_enum=True), nullable=False, default=ContentPackVisibility.private
     )
@@ -269,6 +290,12 @@ class Content(Base):
         nullable=False,
     )
 
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    source_authority: Mapped[str] = mapped_column(Text, nullable=False, default=ContentAuthority.owner_editor.value)
+
     name: Mapped[str] = mapped_column(Text, nullable=False)
 
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -322,6 +349,10 @@ class ContentVersion(Base):
 
     content_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("content.id", ondelete="CASCADE"), nullable=False
+    )
+
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
 
     version_num: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -412,7 +443,9 @@ class UserCampaignRole(Base):
         UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True
     )
 
-    role: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[CampaignRole] = mapped_column(
+        Enum(CampaignRole, name="campaign_role", native_enum=True), nullable=False
+    )
 
 
 class Character(Base):
@@ -483,6 +516,149 @@ class CampaignChatMessage(Base):
     )
 
     message: Mapped[str] = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class CampaignNote(Base):
+    __tablename__ = "campaign_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+
+    campaign_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False
+    )
+
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+
+    body: Mapped[Dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: {"type": "doc", "content": []},
+    )
+
+    visibility: Mapped[CampaignNoteVisibility] = mapped_column(
+        Enum(CampaignNoteVisibility, name="campaign_note_visibility", native_enum=True),
+        nullable=False,
+        default=CampaignNoteVisibility.gm,
+    )
+
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    version_num: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    archived_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class CampaignNoteRevision(Base):
+    __tablename__ = "campaign_note_revisions"
+
+    note_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campaign_notes.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    version_num: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+
+    body: Mapped[Dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: {"type": "doc", "content": []},
+    )
+
+    visibility: Mapped[CampaignNoteVisibility] = mapped_column(
+        Enum(CampaignNoteVisibility, name="campaign_note_visibility", native_enum=True),
+        nullable=False,
+    )
+
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class CampaignAllowedPack(Base):
+    __tablename__ = "campaign_allowed_packs"
+
+    campaign_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True
+    )
+
+    pack_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True
+    )
+
+    game_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False
+    )
+
+    allowed_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["campaign_id", "game_id"],
+            ["campaigns.id", "campaigns.game_id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["pack_id", "game_id"],
+            ["content_packs.id", "content_packs.game_id"],
+            ondelete="CASCADE",
+        ),
+    )
+
+
+class ContentPackPermission(Base):
+    __tablename__ = "content_pack_permissions"
+
+    pack_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("content_packs.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    can_create_content: Mapped[bool] = mapped_column(nullable=False, default=False)
+    can_edit_any_content: Mapped[bool] = mapped_column(nullable=False, default=False)
+    can_delete_any_content: Mapped[bool] = mapped_column(nullable=False, default=False)
+    can_manage_pack: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+    granted_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
