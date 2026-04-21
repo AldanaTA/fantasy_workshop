@@ -1,2 +1,2 @@
-export type UserRole = 'creator' | 'gm' | 'player';
+export type UserRole = 'creator' | 'gm' | 'player' | 'library';
 

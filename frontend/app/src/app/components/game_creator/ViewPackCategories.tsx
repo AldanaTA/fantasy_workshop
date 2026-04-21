@@ -24,8 +24,8 @@ import {
 } from '../ui/dialog';
 import { ChevronDown, ChevronUp, Edit3, Plus, CircleArrowLeft, Trash2 } from 'lucide-react';
 import { Content, ContentCategory, ContentPack } from '../../api/models';
-import {contentCategoriesApi} from '../../api/contentCategoriesApi';
-import { contentApi } from '../../api/contentApi';
+import { contentCategoriesApi, invalidateContentCategoriesByPack } from '../../api/contentCategoriesApi';
+import { contentApi, invalidateContentCategoryCaches } from '../../api/contentApi';
 import { useToast } from '../ui/toastProvider';
 import { ContentMaker } from './contentMaker';
 
@@ -239,6 +239,7 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
         "Failed to delete content category."
       });
 
+      invalidateContentCategoriesByPack(pack.id);
       setIsDeleteOpen(false);
       setDeleteTarget(null);
       setExpandedCategoryId((prev) => (prev === deleteTarget.id ? null : prev));
@@ -268,6 +269,7 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
         "Failed to delete content."
       });
 
+      invalidateContentCategoryCaches(deleteContentTarget.category.id);
       setIsContentDeleteOpen(false);
       setDeleteContentTarget(null);
       await loadCategoryContent(deleteContentTarget.category.id, true);

@@ -37,7 +37,7 @@ import {
   isTtrpgContentFieldsV1,
 } from '../../types/contentFields';
 import { JSONDict, JSONValue } from '../../types/misc';
-import { contentApi } from '../../api/contentApi';
+import { contentApi, invalidateContentCategoryCaches } from '../../api/contentApi';
 import { useToast } from '../ui/toastProvider';
 import { ContentRender } from '../content/ContentRender';
 
@@ -698,6 +698,8 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
           active_version_num: createdVersion.version_num,
           deleted_at: null,
         });
+
+        invalidateContentCategoryCaches(category.id);
 
         return savedContent;
       })(), {

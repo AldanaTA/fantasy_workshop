@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole} from '../types/game';
 import { Button } from './ui/button';
@@ -7,21 +7,10 @@ import { BookOpen, Scroll, User, LogOut, Compass } from 'lucide-react';
 import { GameCreatorDashboard } from './game_creator/GameCreatorDashboard';
 import { GameLibraryPage } from './games/GameLibraryPage';
 import type { LibraryGame } from '../api/models';
-
-
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './ui/alert-dialog';
 import { TokenPair } from '../api/models';
 import { authApi } from '../api/authApi';
 import { get_display_name } from '../api/authStorage';
+import { clearRequestCache } from '../api/requestCache';
 
 /**
  * MainApp component is the root application component that manages the main
@@ -35,12 +24,10 @@ import { get_display_name } from '../api/authStorage';
 interface MainAppProps {
   tokens: TokenPair;
   onLogout: () => void;
-  initialSection?: AppSection;
+  initialSection?: UserRole;
 }
 
-type AppSection = 'library' | UserRole;
-
-const sectionLabel: Record<AppSection, string> = {
+const sectionLabel: Record<UserRole, string> = {
   library: 'GAME LIBRARY',
   creator: 'CREATOR',
   gm: 'GAME MASTER',
@@ -49,51 +36,26 @@ const sectionLabel: Record<AppSection, string> = {
 
 export function MainApp({ tokens, onLogout, initialSection = 'creator' }: MainAppProps) {
   const navigate = useNavigate();
-  const [currentRole, setCurrentRole] = useState<UserRole>(
-    initialSection === 'library' ? 'player' : initialSection
-  );
-  const [currentSection, setCurrentSection] = useState<AppSection>(initialSection);
+  const [currentSection, setCurrentSection] = useState<UserRole>(initialSection);
   const [isLoading, setIsLoading] = useState(false);
-  const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
-  const [pendingSection, setPendingSection] = useState<AppSection | null>(null);
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [focusedCreatorGameId, setFocusedCreatorGameId] = useState<string | null>(null);
 
   const handleLogout = async () => {
     await authApi.logout({ refresh_token: tokens.refresh_token });
+    clearRequestCache();
     onLogout();
     navigate('/');
   };
 
-  const handleRoleChange = (role: UserRole) => {
-    setPendingRole(role);
-    setPendingSection(role);
-  };
-
-  const handleOpenLibrary = () => {
-    setCurrentSection('library');
+  const handleRoleChange = (section: UserRole) => {
+    setCurrentSection(section);
+    navigate(section === 'library' ? '/library' : '/app');
   };
 
   const handleManageGame = (game: LibraryGame) => {
-    setCurrentRole('creator');
     setCurrentSection('creator');
     setFocusedCreatorGameId(game.id);
-  };
-
-  const confirmRoleChange = () => {
-    if (pendingRole && pendingSection) {
-      setCurrentRole(pendingRole);
-      setCurrentSection(pendingSection);
-    }
-    setPendingRole(null);
-    setPendingSection(null);
-    setShowUnsavedDialog(false);
-  };
-
-  const cancelRoleChange = () => {
-    setPendingRole(null);
-    setPendingSection(null);
-    setShowUnsavedDialog(false);
+    navigate('/app');
   };
 
   if (isLoading) {
@@ -149,7 +111,7 @@ export function MainApp({ tokens, onLogout, initialSection = 'creator' }: MainAp
               </Button>
               <Button
                 variant={currentSection === 'library' ? 'default' : 'outline'}
-                onClick={handleOpenLibrary}
+                onClick={() => handleRoleChange('library')}
                 className="flex min-h-[44px] flex-1 items-center gap-1 px-2 text-xs sm:flex-none sm:gap-2 sm:px-4 sm:text-sm"
               >
                 <Compass className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -182,22 +144,6 @@ export function MainApp({ tokens, onLogout, initialSection = 'creator' }: MainAp
           <GameLibraryPage />
         )}
       </main>
-
-      {/* Unsaved Changes Dialog */}
-      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved changes. Are you sure you want to switch roles?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={cancelRoleChange}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRoleChange}>Switch Role</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

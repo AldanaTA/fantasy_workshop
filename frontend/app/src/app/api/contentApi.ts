@@ -11,13 +11,26 @@ import type {
 } from './models';
 import { validateContentFields } from '../types/contentFields';
 import { getAccessToken } from './authStorage';
+import { fetchWithCache, invalidateCacheByPrefix } from './requestCache';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT;
+const CONTENT_CACHE_TTL_MS = 60_000;
 
 type ApiRequestOptions = {
   token?: string;
   signal?: AbortSignal;
 };
+
+const contentCacheKeys = {
+  byCategory: (categoryId: string, limit: number, offset: number) => `content:category:${categoryId}:l=${limit}:o=${offset}`,
+  byCategoryActive: (categoryId: string, limit: number, offset: number, includeMissing: boolean) =>
+    `content:category-active:${categoryId}:l=${limit}:o=${offset}:missing=${includeMissing ? 1 : 0}`,
+};
+
+export function invalidateContentCategoryCaches(categoryId: string) {
+  invalidateCacheByPrefix(`content:category:${categoryId}:`);
+  invalidateCacheByPrefix(`content:category-active:${categoryId}:`);
+}
 
 const authHeaders = (token?: string) => {
   const t = token ?? getAccessToken();
@@ -51,7 +64,10 @@ const validateContentVersionPayload = (payload: ContentVersionCreate) => {
 export const contentApi = {
   create: (payload: ContentCreate, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<Content>('', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal });
+    return request<Content>('', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((content) => {
+      invalidateContentCategoryCaches(payload.category_id);
+      return content;
+    });
   },
 
   get: (contentId: string, options?: string | ApiRequestOptions) => {
@@ -71,25 +87,38 @@ export const contentApi = {
 
   listByCategory: (categoryId: string, limit = 50, offset = 0, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<Content[]>(`/by-category/${categoryId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token), signal });
+    return fetchWithCache(
+      contentCacheKeys.byCategory(categoryId, limit, offset),
+      () => request<Content[]>(`/by-category/${categoryId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+      { ttlMs: CONTENT_CACHE_TTL_MS, signal },
+    );
   },
 
   listByCategoryWithActive: (categoryId: string, limit = 50, offset = 0, includeMissing = true, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<ContentWithActiveVersion[]>(
-      `/by-category/${categoryId}/active?limit=${limit}&offset=${offset}&include_missing=${includeMissing}`,
-      { method: 'GET', headers: authHeaders(token), signal },
+    return fetchWithCache(
+      contentCacheKeys.byCategoryActive(categoryId, limit, offset, includeMissing),
+      () => request<ContentWithActiveVersion[]>(
+        `/by-category/${categoryId}/active?limit=${limit}&offset=${offset}&include_missing=${includeMissing}`,
+        { method: 'GET', headers: authHeaders(token) },
+      ),
+      { ttlMs: CONTENT_CACHE_TTL_MS, signal },
     );
   },
 
   addToCategory: (payload: ContentCategoryMembershipCreate, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<ContentCategoryMembership>('/category-memberships', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal });
+    return request<ContentCategoryMembership>('/category-memberships', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((membership) => {
+      invalidateContentCategoryCaches(payload.category_id);
+      return membership;
+    });
   },
 
   removeFromCategory: (categoryId: string, contentId: string, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<void>(`/category-memberships/${categoryId}/${contentId}`, { method: 'DELETE', headers: authHeaders(token), signal });
+    return request<void>(`/category-memberships/${categoryId}/${contentId}`, { method: 'DELETE', headers: authHeaders(token), signal }).then(() => {
+      invalidateContentCategoryCaches(categoryId);
+    });
   },
 
   patch: (contentId: string, patch: Partial<Content>, options?: string | ApiRequestOptions) => {

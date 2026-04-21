@@ -32,7 +32,7 @@ import {
 } from '../ui/dialog';
 import { BookOpen, Eye, Edit3, Plus, CircleArrowLeft,Trash2, View,} from 'lucide-react';
 import { ContentPack, Game } from '../../api/models';
-import {contentPacksApi} from '../../api/contentPacksApi';
+import { contentPacksApi, invalidateContentPacksByGame } from '../../api/contentPacksApi';
 import { get_userId } from '../../api/authStorage';
 import { VISIBILITY,Visibility } from '../../types/visibility';
 import { STATUS, Status } from '../../types/status';
@@ -191,6 +191,7 @@ export function ViewGamePacks({ game, onBack }: Props) {
         "Failed to delete content pack."
       });
 
+      invalidateContentPacksByGame(game.id);
       setIsDeleteOpen(false);
       setDeleteTarget(null);
       await loadPacks();
