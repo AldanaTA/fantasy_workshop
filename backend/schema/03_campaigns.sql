@@ -35,10 +35,16 @@ ALTER TABLE content_packs
   REFERENCES campaigns(id, game_id)
   ON DELETE SET NULL;
 
+ALTER TABLE content_packs
+  ADD CONSTRAINT content_packs_source_campaign_fk
+  FOREIGN KEY (source_campaign_id)
+  REFERENCES campaigns(id)
+  ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS content_packs_campaign_id_idx ON content_packs(campaign_id);
 
 CREATE TYPE campaign_role as enum (
-  'Co-GM',
+  'co_gm',
   'player'
 );
 -- USER CAMPAIGN ROLES
@@ -84,6 +90,56 @@ CREATE TABLE IF NOT EXISTS campaign_characters (
 CREATE INDEX IF NOT EXISTS campaign_characters_campaign_id_idx ON campaign_characters(campaign_id);
 CREATE INDEX IF NOT EXISTS campaign_characters_character_id_idx ON campaign_characters(character_id);
 
+CREATE TYPE campaign_note_visibility AS ENUM (
+  'gm',
+  'shared'
+);
+
+CREATE TABLE IF NOT EXISTS campaign_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  body JSONB NOT NULL DEFAULT '{"type":"doc","content":[]}'::jsonb,
+  visibility campaign_note_visibility NOT NULL DEFAULT 'gm',
+  created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  updated_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  version_num INT NOT NULL DEFAULT 1,
+  archived_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS campaign_notes_campaign_updated_idx
+  ON campaign_notes(campaign_id, archived_at, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS campaign_note_revisions (
+  note_id UUID NOT NULL REFERENCES campaign_notes(id) ON DELETE CASCADE,
+  version_num INT NOT NULL,
+  body JSONB NOT NULL DEFAULT '{"type":"doc","content":[]}'::jsonb,
+  updated_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT campaign_note_revisions_pk PRIMARY KEY (note_id, version_num)
+);
+
+CREATE INDEX IF NOT EXISTS campaign_note_revisions_note_version_idx
+  ON campaign_note_revisions(note_id, version_num DESC);
+
+CREATE TABLE IF NOT EXISTS campaign_allowed_packs (
+  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  pack_id UUID NOT NULL REFERENCES content_packs(id) ON DELETE CASCADE,
+  allowed_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at TIMESTAMPTZ,
+  CONSTRAINT campaign_allowed_packs_pk PRIMARY KEY (campaign_id, pack_id)
+);
+
+CREATE INDEX IF NOT EXISTS campaign_allowed_packs_active_campaign_idx
+  ON campaign_allowed_packs(campaign_id, created_at DESC)
+  WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS campaign_allowed_packs_active_pack_idx
+  ON campaign_allowed_packs(pack_id)
+  WHERE revoked_at IS NULL;
+
 -- CAMPAIGN CHAT MESSAGES
 CREATE TABLE IF NOT EXISTS campaign_chat_messages (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -95,7 +151,7 @@ CREATE TABLE IF NOT EXISTS campaign_chat_messages (
 );
 
 CREATE INDEX IF NOT EXISTS campaign_chat_messages_campaign_id_created_at_idx
-  ON campaign_chat_messages(campaign_id, created_at DESC);
+  ON campaign_chat_messages(campaign_id, created_at DESC, id DESC);
 -- Why: chats are usually loaded as "latest N messages in a campaign".
 
 -- Best practice: array membership queries need GIN.

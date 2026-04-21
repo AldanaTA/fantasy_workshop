@@ -1,3 +1,5 @@
+from struct import pack
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -5,17 +7,12 @@ from uuid import UUID
 
 from app.routers._crud import crud_router
 from app.schema.db import get_db
-from app.schema.models import ContentPack, Game, UserGameRole
+from app.schema.models import ContentCategory, ContentPack, Game, UserGameRole
 from app.schema.schemas import ContentPackCreate, ContentPackOut
-from app.helpers import require_user
+from app.helpers import new_id, require_user
 
-router = crud_router(
-    name="content_packs",
-    model=ContentPack,
-    create_schema=ContentPackCreate,
-    out_schema=ContentPackOut,
-    prefix="/content/packs",
-    require_auth=True)
+
+router = APIRouter(prefix="/content/packs", tags=["content_packs"])
 
 def _enum_value(value) -> str:
     return getattr(value, "value", str(value))
@@ -35,7 +32,36 @@ async def _game_access(game: Game, user_id: UUID, db: AsyncSession) -> tuple[boo
 def _pack_is_player_visible(pack: ContentPack) -> bool:
     return _enum_value(pack.status) == "published" and _enum_value(pack.visibility) in {"game", "public"}
 
-@router.delete("userdel/{pack_id}", dependencies=[Depends(require_user)])
+@router.post("", response_model=ContentPackOut, dependencies=[Depends(require_user)])
+async def create_content_pack(
+    content_pack_in: ContentPackCreate,
+    user = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user_id = UUID(user["uid"]) if isinstance(user, dict) else user.id
+    game = await db.get(Game, content_pack_in.game_id)
+    if not game:
+        raise HTTPException(404, "Game not found")
+
+    can_edit, _, _ = await _game_access(game, user_id, db)
+    if not can_edit:
+        raise HTTPException(403, "Access denied")
+
+    content_pack = ContentPack(**content_pack_in.dict())
+    content_pack.id = new_id()
+    db.add(content_pack)
+    await db.commit()
+    await db.refresh(content_pack)
+    category = ContentCategory(
+        id=new_id(),
+        pack_id=content_pack.id,
+        name="Uncategorized"
+    )
+    db.add(category)
+    await db.commit()
+    return content_pack
+
+@router.delete("/userdel/{pack_id}", dependencies=[Depends(require_user)])
 async def delete_content_pack(
     pack_id: UUID,
     user = Depends(require_user),

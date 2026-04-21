@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS content_packs (
 
   pack_name    TEXT NOT NULL,
   description  TEXT,
+  created_by_role TEXT NOT NULL DEFAULT 'owner_editor',
+  source_campaign_id UUID NULL,
   visibility   content_pack_visibility NOT NULL DEFAULT 'private',
   status       content_pack_status NOT NULL DEFAULT 'draft',
 
@@ -59,6 +61,7 @@ CREATE INDEX IF NOT EXISTS content_packs_owner_id_idx ON content_packs(owner_id)
 CREATE INDEX IF NOT EXISTS content_packs_game_id_idx ON content_packs(game_id);
 CREATE INDEX IF NOT EXISTS content_packs_status_idx ON content_packs(status);
 CREATE INDEX IF NOT EXISTS content_packs_campaign_id_idx ON content_packs(campaign_id);
+CREATE INDEX IF NOT EXISTS content_packs_source_campaign_id_idx ON content_packs(source_campaign_id);
 
 -- Why: public browsing is common; boolean indexes aren't always useful, but on large sets
 -- it can help when combined with other filters; keep if you actually query it often.
@@ -109,6 +112,8 @@ EXECUTE FUNCTION set_content_category_sort_key();
 CREATE TABLE IF NOT EXISTS content (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pack_id      UUID NOT NULL REFERENCES content_packs(id) ON DELETE CASCADE,
+  created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  source_authority TEXT NOT NULL DEFAULT 'owner_editor',
   name         TEXT NOT NULL,
   summary      TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -118,6 +123,7 @@ CREATE TABLE IF NOT EXISTS content (
 );
 
 CREATE INDEX IF NOT EXISTS content_pack_id_idx ON content(pack_id);
+CREATE INDEX IF NOT EXISTS content_created_by_user_id_idx ON content(created_by_user_id);
 
 -- CONTENT CATEGORY MEMBERSHIPS
 -- A content item may appear in many categories, but only once per category.
@@ -148,6 +154,7 @@ CREATE INDEX IF NOT EXISTS content_category_memberships_content_id_idx
 CREATE TABLE IF NOT EXISTS content_versions (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   content_id  UUID NOT NULL REFERENCES content(id) ON DELETE CASCADE,
+  created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
 
   version_num INT NOT NULL,
   fields      JSONB NOT NULL DEFAULT '{
@@ -186,6 +193,8 @@ CREATE TABLE IF NOT EXISTS content_versions (
 -- Best practice: fast lookups for "latest version" and "specific version"
 CREATE INDEX IF NOT EXISTS content_versions_content_id_version_idx
   ON content_versions(content_id, version_num DESC);
+CREATE INDEX IF NOT EXISTS content_versions_created_by_user_id_idx
+  ON content_versions(created_by_user_id);
 CREATE INDEX IF NOT EXISTS content_versions_content_type_idx
   ON content_versions(content_type);
 CREATE INDEX IF NOT EXISTS content_versions_schema_version_idx
@@ -209,5 +218,20 @@ CREATE TABLE IF NOT EXISTS content_active_versions (
 CREATE INDEX IF NOT EXISTS content_active_versions_active_idx
   ON content_active_versions(content_id)
   WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS content_pack_permissions (
+  pack_id UUID NOT NULL REFERENCES content_packs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  can_create_content BOOLEAN NOT NULL DEFAULT FALSE,
+  can_edit_any_content BOOLEAN NOT NULL DEFAULT FALSE,
+  can_delete_any_content BOOLEAN NOT NULL DEFAULT FALSE,
+  can_manage_pack BOOLEAN NOT NULL DEFAULT FALSE,
+  granted_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT content_pack_permissions_pk PRIMARY KEY (pack_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS content_pack_permissions_user_id_idx
+  ON content_pack_permissions(user_id);
 
 COMMIT;

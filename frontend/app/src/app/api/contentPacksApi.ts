@@ -59,6 +59,6 @@ export const contentPacksApi = {
 
   delete: (id: string, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<void>(`userdel/${id}`, { method: 'DELETE', headers: authHeaders(token), signal });
+    return request<void>(`/userdel/${id}`, { method: 'DELETE', headers: authHeaders(token), signal });
   },
 };
