@@ -171,6 +171,15 @@ export interface Campaign {
 	updated_at: DateTime;
 }
 
+export interface CampaignSession {
+	id: UUID;
+	campaign_id: UUID;
+	started_by_user_id: UUID;
+	ended_by_user_id?: UUID | null;
+	started_at: DateTime;
+	ended_at?: DateTime | null;
+}
+
 export interface UserCampaignRole {
 	user_id: UUID;
 	campaign_id: UUID;

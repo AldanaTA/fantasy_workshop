@@ -1,11 +1,12 @@
 import { API_CONFIG } from './apiConfig';
 import type { AuthIdentity } from './models';
+import { getAccessToken } from './authStorage';
 
 const API_URL = API_CONFIG.VITE_API_BASE + '/' + API_CONFIG.VITE_AUTH_IDENTITIES
 
 const authHeaders = (token?: string) => {
-	const t = token ?? localStorage.getItem('authToken');
-	return t ? { Authorization: `Bearer ${t}` } : {};
+	const t = token ?? getAccessToken();
+	return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
