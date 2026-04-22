@@ -80,7 +80,27 @@ export const campaignsApi = {
     request<CampaignCharacterLoad>(`/${campaignId}/characters/${campaignCharacterId}/save`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token) }),
 
   // notes
-  listNotes: (campaignId: string, token?: string) => request<CampaignNote[]>(`/${campaignId}/notes`, { method: 'GET', headers: authHeaders(token) }),
+  listNotes: (
+    campaignId: string,
+    options?: {
+      includeArchived?: boolean;
+      visibility?: 'all' | 'gm' | 'shared';
+      limit?: number;
+      offset?: number;
+      token?: string;
+    },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.includeArchived) params.set('include_archived', 'true');
+    if (options?.visibility && options.visibility !== 'all') params.set('visibility', options.visibility);
+    if (options?.limit !== undefined) params.set('limit', String(options.limit));
+    if (options?.offset !== undefined) params.set('offset', String(options.offset));
+    const query = params.toString();
+    return request<CampaignNote[]>(
+      `/${campaignId}/notes${query ? `?${query}` : ''}`,
+      { method: 'GET', headers: authHeaders(options?.token) },
+    );
+  },
   createNote: (campaignId: string, payload: Partial<CampaignNote>, token?: string) =>
     request<CampaignNote>(`/${campaignId}/notes`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
   getNote: (campaignId: string, noteId: string, token?: string) =>

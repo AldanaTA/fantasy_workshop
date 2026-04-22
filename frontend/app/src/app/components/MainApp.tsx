@@ -7,6 +7,7 @@ import { BookOpen, Scroll, User, LogOut, Compass } from 'lucide-react';
 import { GameCreatorDashboard } from './game_creator/GameCreatorDashboard';
 import { GameLibraryPage } from './games/GameLibraryPage';
 import { CampaignSessionsPage } from './campaigns/CampaignSessionsPage';
+import { GameMasterDashboard } from './game_master/GameMasterDashboard';
 import type { LibraryGame } from '../api/models';
 import { TokenPair } from '../api/models';
 import { authApi } from '../api/authApi';
@@ -140,7 +141,7 @@ export function MainApp({ tokens, onLogout, initialSection = 'creator' }: MainAp
             onInitialViewHandled={() => setFocusedCreatorGameId(null)}
           />
         ) : currentSection === 'gm' ? (
-          <CampaignSessionsPage role="gm" />
+          <GameMasterDashboard />
         ) : currentSection === 'player' ? (
           <CampaignSessionsPage role="player" />
         ) : currentSection === 'library' ? (
