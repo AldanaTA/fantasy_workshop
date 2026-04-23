@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import Any, Optional
 from uuid import UUID
 from datetime import datetime
+from app.schema.campaign_note_body import default_campaign_note_body, validate_campaign_note_body_shape
 
 class IdOut(BaseModel):
     id: UUID
@@ -273,14 +274,26 @@ class CampaignCharacterOut(IdOut):
 
 class CampaignNoteCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    body: dict[str, Any] = Field(default_factory=lambda: {"type": "doc", "content": []})
-    visibility: str = "gm"
+    body: dict[str, Any] = Field(default_factory=default_campaign_note_body)
+    visibility: str = Field(default="gm", pattern="^(gm|shared)$")
+
+    @field_validator("body")
+    @classmethod
+    def validate_body(cls, body: dict[str, Any]) -> dict[str, Any]:
+        return validate_campaign_note_body_shape(body)
 
 class CampaignNoteUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
     body: Optional[dict[str, Any]] = None
-    visibility: Optional[str] = None
+    visibility: Optional[str] = Field(default=None, pattern="^(gm|shared)$")
     expected_version_num: int = Field(ge=1)
+
+    @field_validator("body")
+    @classmethod
+    def validate_body(cls, body: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        if body is None:
+            return None
+        return validate_campaign_note_body_shape(body)
 
 class CampaignNoteOut(IdOut):
     campaign_id: UUID

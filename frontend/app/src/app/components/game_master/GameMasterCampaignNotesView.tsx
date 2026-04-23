@@ -3,8 +3,24 @@ import { ArchiveRestore, History, PencilLine, Plus, Trash2 } from 'lucide-react'
 
 import { campaignsApi } from '../../api/campaignsApi';
 import type { Campaign, CampaignNote, CampaignNoteRevision } from '../../api/models';
+import type { CampaignNoteDocument } from '../../types/campaignNotes';
+import { CampaignNoteEditor } from '../content/CampaignNoteEditor';
+import { CampaignNoteRenderer } from '../content/CampaignNoteRenderer';
+import {
+  createEmptyCampaignNoteDocument,
+  getCampaignNotePlainText,
+  normalizeCampaignNoteBody,
+} from '../content/campaignNoteDocument';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardTitle } from '../ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import {
@@ -14,7 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { Textarea } from '../ui/textarea';
 import { useToast } from '../ui/toastProvider';
 import { GameMasterViewFrame } from './GameMasterViewFrame';
 
@@ -26,13 +41,13 @@ type Props = {
 
 type NoteFormState = {
   title: string;
-  bodyText: string;
+  body: CampaignNoteDocument;
   visibility: 'gm' | 'shared';
 };
 
 const emptyForm: NoteFormState = {
   title: '',
-  bodyText: '',
+  body: createEmptyCampaignNoteDocument(),
   visibility: 'gm',
 };
 
@@ -46,6 +61,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<NoteFormState>(emptyForm);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const loadNotes = async () => {
     setIsLoading(true);
@@ -81,20 +97,34 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
     }
   };
 
-  const handleSelectNote = async (note: CampaignNote) => {
-    setActiveNote(note);
-    setForm({
-      title: note.title,
-      bodyText: extractNoteText(note.body),
-      visibility: note.visibility === 'shared' ? 'shared' : 'gm',
-    });
-    await loadRevisions(note);
-  };
-
-  const handleCreate = () => {
+  const openCreateDialog = () => {
     setActiveNote(null);
     setRevisions([]);
     setForm(emptyForm);
+    setError(null);
+    setIsEditorOpen(true);
+  };
+
+  const openEditDialog = async (note: CampaignNote) => {
+    setActiveNote(note);
+    setForm({
+      title: note.title,
+      body: normalizeCampaignNoteBody(note.body),
+      visibility: note.visibility === 'shared' ? 'shared' : 'gm',
+    });
+    setError(null);
+    setIsEditorOpen(true);
+    await loadRevisions(note);
+  };
+
+  const closeEditor = (open: boolean) => {
+    setIsEditorOpen(open);
+    if (!open) {
+      setError(null);
+      setForm(emptyForm);
+      setActiveNote(null);
+      setRevisions([]);
+    }
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -111,7 +141,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
         await toastPromise(
           campaignsApi.patchNote(campaign.id, activeNote.id, {
             title: form.title.trim(),
-            body: buildNoteBody(form.bodyText),
+            body: form.body,
             visibility: form.visibility,
             expected_version_num: activeNote.version_num,
           }),
@@ -125,7 +155,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
         await toastPromise(
           campaignsApi.createNote(campaign.id, {
             title: form.title.trim(),
-            body: buildNoteBody(form.bodyText),
+            body: form.body,
             visibility: form.visibility,
           }),
           {
@@ -136,6 +166,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
         );
       }
       await loadNotes();
+      closeEditor(false);
     } catch (err) {
       setError((err as Error)?.message || 'Unable to save note.');
     } finally {
@@ -154,7 +185,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
           error: (e) => (e as Error)?.message || 'Failed to archive note.',
         },
       );
-      handleCreate();
+      closeEditor(false);
       await loadNotes();
     } catch (err) {
       setError((err as Error)?.message || 'Unable to archive note.');
@@ -180,56 +211,68 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
   const content = (
     <>
       <div className="grid grid-cols-2 gap-2 sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-        <Button type="button" variant="outline" onClick={handleCreate} size="sm">
+        <Button type="button" variant="outline" onClick={openCreateDialog} size="sm">
           <Plus className="h-3.5 w-3.5" />
-          New Note
+          Make Note
         </Button>
         <Button type="button" variant={showArchived ? 'secondary' : 'outline'} size="sm" onClick={() => setShowArchived((prev) => !prev)}>
           {showArchived ? 'Hide Archived' : 'Show Archived'}
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-        <div className="space-y-4">
-          {isLoading ? (
-            <div className="rounded-2xl border border-dashed border-border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
-              Loading notes...
-            </div>
-          ) : notes.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
-              No notes found for this campaign.
-            </div>
-          ) : (
-            notes.map((note) => (
-              <Card key={note.id} className={note.id === activeNote?.id ? 'border-primary' : 'border-border'}>
-                <CardContent className="space-y-3">
-                  <div>
-                    <CardTitle className="text-base">{note.title}</CardTitle>
-                    <CardDescription>
-                      {note.visibility} note · v{note.version_num}
-                      {note.archived_at ? ' · archived' : ''}
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => void handleSelectNote(note)}>
-                      <PencilLine className="h-3.5 w-3.5" />
-                      {note.archived_at ? 'View' : 'Edit'}
+      <div className="space-y-4">
+        {isLoading ? (
+          <div className="rounded-2xl border border-dashed border-border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
+            Loading notes...
+          </div>
+        ) : notes.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
+            No notes found for this campaign.
+          </div>
+        ) : (
+          notes.map((note) => (
+            <Card key={note.id} className="border-border">
+              <CardContent className="space-y-3">
+                <div className='pt-2'>
+                  <CardTitle className="text-base">{note.title}</CardTitle>
+                  <CardDescription>
+                    {note.visibility} note · v{note.version_num}
+                    {note.archived_at ? ' · archived' : ''}
+                  </CardDescription>
+                </div>
+                {getCampaignNotePlainText(note.body) ? (
+                  <p className="line-clamp-3 text-sm text-muted-foreground">
+                    {getCampaignNotePlainText(note.body)}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => void openEditDialog(note)}>
+                    <PencilLine className="h-3.5 w-3.5" />
+                    {note.archived_at ? 'View' : 'Edit'}
+                  </Button>
+                  {note.archived_at ? (
+                    <Button type="button" variant="outline" size="sm" onClick={() => void handleRestore(note)}>
+                      <ArchiveRestore className="h-3.5 w-3.5" />
+                      Restore
                     </Button>
-                    {note.archived_at ? (
-                      <Button type="button" variant="outline" size="sm" onClick={() => void handleRestore(note)}>
-                        <ArchiveRestore className="h-3.5 w-3.5" />
-                        Restore
-                      </Button>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
 
-        <div className="space-y-4">
-          <form className="space-y-4 rounded-2xl border border-border bg-background p-4" onSubmit={handleSubmit}>
+      <Dialog open={isEditorOpen} onOpenChange={closeEditor}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:max-w-2xl sm:p-6">
+          <DialogHeader>
+            <DialogTitle>{activeNote ? (activeNote.archived_at ? 'View Note' : 'Edit Note') : 'Create Note'}</DialogTitle>
+            <DialogDescription>
+              Format campaign notes with a reusable lightweight editor that can be shared with future player-facing note workflows.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="grid gap-2">
               <Label htmlFor="gm-note-title">Title</Label>
               <Input
@@ -237,8 +280,10 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
                 value={form.title}
                 onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                 placeholder="Frontier shrine clues"
+                disabled={Boolean(activeNote?.archived_at)}
               />
             </div>
+
             <div className="grid gap-2">
               <Label htmlFor="gm-note-visibility">Visibility</Label>
               <Select
@@ -255,32 +300,48 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
                 </SelectContent>
               </Select>
             </div>
+
             <div className="grid gap-2">
               <Label htmlFor="gm-note-body">Body</Label>
-              <Textarea
-                id="gm-note-body"
-                className="min-h-[220px]"
-                value={form.bodyText}
-                onChange={(event) => setForm((prev) => ({ ...prev, bodyText: event.target.value }))}
-                disabled={Boolean(activeNote?.archived_at)}
-              />
+              {activeNote?.archived_at ? (
+                <div className="rounded-2xl border border-input bg-input-background px-4 py-4">
+                  <CampaignNoteRenderer
+                    body={form.body}
+                    emptyState={<p className="text-sm text-muted-foreground">This note is empty.</p>}
+                  />
+                </div>
+              ) : (
+                <CampaignNoteEditor
+                  id="gm-note-body"
+                  value={form.body}
+                  onChange={(body) => setForm((prev) => ({ ...prev, body }))}
+                  helperText="Notes now use a structured document model that is shared by editing and read-only rendering."
+                />
+              )}
             </div>
+
             {error ? (
               <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
                 {error}
               </div>
             ) : null}
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="submit" className="min-h-[44px] sm:w-auto" disabled={isSaving || Boolean(activeNote?.archived_at)}>
-                {activeNote ? 'Save Note' : 'Create Note'}
-              </Button>
+
+            <DialogFooter>
               {activeNote && !activeNote.archived_at ? (
                 <Button type="button" variant="destructive" className="min-h-[44px] sm:w-auto" onClick={() => void handleArchive()}>
                   <Trash2 className="h-4 w-4" />
                   Archive
                 </Button>
               ) : null}
-            </div>
+              <Button type="button" variant="outline" className="min-h-[44px] sm:w-auto" onClick={() => closeEditor(false)}>
+                Cancel
+              </Button>
+              {!activeNote?.archived_at ? (
+                <Button type="submit" className="min-h-[44px] sm:w-auto" disabled={isSaving}>
+                  {activeNote ? 'Save Note' : 'Create Note'}
+                </Button>
+              ) : null}
+            </DialogFooter>
           </form>
 
           {activeNote && revisions.length > 0 ? (
@@ -298,8 +359,8 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
               </div>
             </div>
           ) : null}
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
@@ -313,39 +374,15 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
       description="Write GM or shared notes in a dedicated mode without stacking the rest of the campaign tools on the page."
       onBack={onBack}
       actions={(
-        <Button type="button" variant="outline" onClick={handleCreate} className="min-h-[44px]">
+        <Button type="button" variant="outline" onClick={openCreateDialog} className="min-h-[44px]">
           <Plus className="h-4 w-4" />
-          New Note
+          Make Note
         </Button>
       )}
     >
       {content}
     </GameMasterViewFrame>
   );
-}
-
-function buildNoteBody(text: string) {
-  return {
-    type: 'doc',
-    content: text.trim()
-      ? [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text }],
-        },
-      ]
-      : [],
-  };
-}
-
-function extractNoteText(body: unknown): string {
-  if (!body || typeof body !== 'object') return '';
-  const content = (body as { content?: Array<{ content?: Array<{ text?: string }> }> }).content;
-  if (!Array.isArray(content)) return '';
-  return content
-    .flatMap((block) => (Array.isArray(block.content) ? block.content : []))
-    .map((node) => node.text ?? '')
-    .join('');
 }
 
 function formatDateTime(value: string) {

@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Optional, List, Dict
 import uuid
 from enum import Enum as PyEnum
+from app.schema.campaign_note_body import default_campaign_note_body
 
 
 class InviteTargetType(PyEnum):
@@ -536,7 +537,7 @@ class CampaignNote(Base):
     body: Mapped[Dict] = mapped_column(
         JSONB,
         nullable=False,
-        default=lambda: {"type": "doc", "content": []},
+        default=default_campaign_note_body,
     )
 
     visibility: Mapped[CampaignNoteVisibility] = mapped_column(
@@ -582,7 +583,7 @@ class CampaignNoteRevision(Base):
     body: Mapped[Dict] = mapped_column(
         JSONB,
         nullable=False,
-        default=lambda: {"type": "doc", "content": []},
+        default=default_campaign_note_body,
     )
 
     visibility: Mapped[CampaignNoteVisibility] = mapped_column(

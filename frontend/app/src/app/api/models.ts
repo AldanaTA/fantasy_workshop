@@ -2,6 +2,7 @@ import { Visibility } from "../types/visibility";
 import { Status} from "../types/status";
 import { JSONDict,UUID,DateTime } from "../types/misc";
 import { ContentFields } from "../types/contentFields";
+import { CampaignNoteBody, CampaignNoteDocument } from "../types/campaignNotes";
 
 
 
@@ -206,7 +207,7 @@ export interface CampaignNote {
 	id: UUID;
 	campaign_id: UUID;
 	title: string;
-	body: JSONDict;
+	body: CampaignNoteBody;
 	visibility: "gm" | "shared" | string;
 	created_by_user_id: UUID;
 	updated_by_user_id: UUID;
@@ -220,10 +221,23 @@ export interface CampaignNoteRevision {
 	note_id: UUID;
 	version_num: number;
 	title: string;
-	body: JSONDict;
+	body: CampaignNoteBody;
 	visibility: "gm" | "shared" | string;
 	updated_by_user_id: UUID;
 	created_at: DateTime;
+}
+
+export interface CampaignNoteCreateInput {
+	title: string;
+	body: CampaignNoteDocument;
+	visibility: "gm" | "shared";
+}
+
+export interface CampaignNoteUpdateInput {
+	title?: string;
+	body?: CampaignNoteDocument;
+	visibility?: "gm" | "shared";
+	expected_version_num: number;
 }
 
 export interface CampaignAllowedPack {

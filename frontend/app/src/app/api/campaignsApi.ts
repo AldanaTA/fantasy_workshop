@@ -8,6 +8,8 @@ import type {
   CampaignCharacterValidation,
   CampaignNote,
   CampaignNoteRevision,
+  CampaignNoteCreateInput,
+  CampaignNoteUpdateInput,
   CampaignAllowedPack,
   CampaignContentVersion,
   CampaignEvent,
@@ -90,11 +92,11 @@ export const campaignsApi = {
       { method: 'GET', headers: authHeaders(options?.token) },
     );
   },
-  createNote: (campaignId: string, payload: Partial<CampaignNote>, token?: string) =>
+  createNote: (campaignId: string, payload: CampaignNoteCreateInput, token?: string) =>
     request<CampaignNote>(`/${campaignId}/notes`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
   getNote: (campaignId: string, noteId: string, token?: string) =>
     request<CampaignNote>(`/${campaignId}/notes/${noteId}`, { method: 'GET', headers: authHeaders(token) }),
-  patchNote: (campaignId: string, noteId: string, payload: Record<string, unknown>, token?: string) =>
+  patchNote: (campaignId: string, noteId: string, payload: CampaignNoteUpdateInput, token?: string) =>
     request<CampaignNote>(`/${campaignId}/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify(payload), headers: authHeaders(token) }),
   deleteNote: (campaignId: string, noteId: string, token?: string) =>
     request<void>(`/${campaignId}/notes/${noteId}`, { method: 'DELETE', headers: authHeaders(token) }),
