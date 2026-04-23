@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
+  ArrowDown,
   Dices,
   Loader2,
   Radio,
@@ -123,9 +124,13 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
   const reconnectTimerRef = useRef<number | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
+  const shouldAutoScrollRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   useEffect(() => {
     didInitialScrollRef.current = false;
+    shouldAutoScrollRef.current = true;
+    setShowJumpToLatest(false);
   }, [campaign.id]);
 
   const participantMap = useMemo(() => {
@@ -222,7 +227,7 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
       socket.onmessage = (event) => {
         const parsed = parseChatSocketPayload(event.data);
         if (!parsed) return;
-        const shouldStickToBottom = isNearBottom(scrollRootRef.current);
+        const shouldStickToBottom = shouldAutoScrollRef.current || isNearBottom(scrollRootRef.current);
         setChatMessages((prev) => mergeById(prev, [parsed], (item) => item.id, compareByCreatedAtAsc));
         if (shouldStickToBottom) {
           queueScrollToBottom(scrollRootRef.current);
@@ -270,7 +275,7 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
       try {
         const nextEvents = await pollNewestEvents(campaign.id, events);
         if (cancelled || !nextEvents.length) return;
-        const shouldStickToBottom = isNearBottom(scrollRootRef.current);
+        const shouldStickToBottom = shouldAutoScrollRef.current || isNearBottom(scrollRootRef.current);
         setEvents((prev) => mergeById(prev, nextEvents, (item) => item.id, compareByCreatedAtAsc));
         if (shouldStickToBottom) {
           queueScrollToBottom(scrollRootRef.current);
@@ -300,6 +305,21 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
       queueScrollToBottom(scrollRootRef.current);
     }
   }, [isLoading, timelineItems.length]);
+
+  useEffect(() => {
+    const viewport = getScrollViewport(scrollRootRef.current);
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      const nearBottom = isNearBottom(scrollRootRef.current);
+      shouldAutoScrollRef.current = nearBottom;
+      setShowJumpToLatest(!nearBottom);
+    };
+
+    handleScroll();
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    return () => viewport.removeEventListener('scroll', handleScroll);
+  }, [isLoading, loadError, timelineItems.length]);
 
   const handleLoadOlder = async () => {
     if (isLoadingOlder || (!hasMoreChat && !hasMoreEvents)) return;
@@ -366,6 +386,8 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
     }
 
     socket.send(JSON.stringify(payload));
+    shouldAutoScrollRef.current = true;
+    setShowJumpToLatest(false);
     queueScrollToBottom(scrollRootRef.current);
     return true;
   };
@@ -453,8 +475,8 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
       : 'Reconnecting';
 
   return (
-    <div className={cn('space-y-3 rounded-2xl border border-border bg-background p-3 shadow-sm', className)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className={cn('flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-sm', className)}>
+      <div className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold">Campaign Chat</p>
           <p className="text-xs text-muted-foreground">
@@ -475,25 +497,11 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
           </Badge>
         </div>
       </div>
-
-      <div className="rounded-xl border border-border">
-        <div className="border-b border-border px-3 py-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="min-h-[36px] w-full justify-center"
-            onClick={() => void handleLoadOlder()}
-            disabled={isLoadingOlder || (!hasMoreChat && !hasMoreEvents)}
-          >
-            {isLoadingOlder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {hasMoreChat || hasMoreEvents ? 'Load older messages' : 'History loaded'}
-          </Button>
-        </div>
-
-        <div ref={scrollRootRef}>
-          <ScrollArea className="h-[16rem] w-full sm:h-[18rem]">
-            <div className="space-y-2 px-3 py-2.5">
+ 
+      <div className="flex flex-col">
+        <div ref={scrollRootRef} className="relative">
+          <ScrollArea className="h-[22rem] w-full sm:h-[24rem]">
+            <div className="space-y-2 px-3 py-3 sm:px-4">
               {timelineItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                   No campaign chat or event history yet.
@@ -505,75 +513,94 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
               )}
             </div>
           </ScrollArea>
+          {showJumpToLatest ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
+              <Button
+                type="button"
+                size="sm"
+                className="pointer-events-auto rounded-full shadow-md"
+                onClick={() => {
+                  shouldAutoScrollRef.current = true;
+                  setShowJumpToLatest(false);
+                  queueScrollToBottom(scrollRootRef.current);
+                }}
+              >
+                <ArrowDown className="h-4 w-4" />
+                Latest
+              </Button>
+            </div>
+          ) : null}
         </div>
-      </div>
 
-      <div className="space-y-2 rounded-xl border border-border p-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="sm:w-52">
-            <Select value={composerTarget} onValueChange={setComposerTarget} disabled={!canWriteChat}>
-              <SelectTrigger className="min-h-[40px]">
-                <SelectValue placeholder="Choose audience" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="public">Public chat</SelectItem>
-                {whisperOptions.map((participant) => (
-                  <SelectItem key={participant.userId} value={participant.userId}>
-                    Whisper to {participant.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-2 border-t border-border bg-muted/20 px-3 py-2.5 sm:px-4">
+          <div className="flex flex-col gap-1.5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="w-full lg:max-w-xs">
+              <Select value={composerTarget} onValueChange={setComposerTarget} disabled={!canWriteChat}>
+                <SelectTrigger className="min-h-[40px] bg-background">
+                  <SelectValue placeholder="Choose audience" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public chat</SelectItem>
+                  {whisperOptions.map((participant) => (
+                    <SelectItem key={participant.userId} value={participant.userId}>
+                      Whisper to {participant.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {composerTarget === 'public'
+                ? 'Public log entry'
+                : `Private to ${participantMap.get(composerTarget)?.label ?? 'selected participant'}`}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {composerTarget === 'public'
-              ? 'Public log entry'
-              : `Private to ${participantMap.get(composerTarget)?.label ?? 'selected participant'}`}
-          </p>
+
+          <form className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={handleSendMessage}>
+            <Textarea
+              value={composerText}
+              onChange={(event) => setComposerText(event.target.value)}
+              placeholder={canWriteChat ? 'Send a message...' : 'Viewers can read chat but cannot send messages.'}
+              className="min-h-[44px] max-h-28 resize-y bg-background text-sm"
+              disabled={!canWriteChat}
+              maxLength={4000}
+            />
+            <Button
+              type="submit"
+              className="min-h-[40px] w-full px-3 sm:w-auto sm:self-end"
+              disabled={!canWriteChat || !composerText.trim() || socketStatus !== 'live'}
+            >
+              <Send className="h-4 w-4" />
+              Send
+            </Button>
+          </form>
+
+          <form className="grid gap-1.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={handleRoll}>
+            <Input
+              value={rollExpression}
+              onChange={(event) => setRollExpression(event.target.value)}
+              placeholder="Roll expression, e.g. 1d20+5"
+              disabled={!canWriteChat}
+              className="h-9 bg-background text-sm"
+            />
+            <Input
+              value={rollLabel}
+              onChange={(event) => setRollLabel(event.target.value)}
+              placeholder="Optional label, e.g. Attack"
+              disabled={!canWriteChat}
+              className="h-9 bg-background text-sm"
+            />
+            <Button
+              type="submit"
+              variant="outline"
+              className="h-9 w-full bg-background px-3 md:w-auto"
+              disabled={!canWriteChat || !rollExpression.trim() || socketStatus !== 'live' || isSendingRoll}
+            >
+              <Dices className="h-4 w-4" />
+              Roll
+            </Button>
+          </form>
         </div>
-
-        <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handleSendMessage}>
-          <Textarea
-            value={composerText}
-            onChange={(event) => setComposerText(event.target.value)}
-            placeholder={canWriteChat ? 'Send a message...' : 'Viewers can read chat but cannot send messages.'}
-            className="min-h-[64px] flex-1 resize-none"
-            disabled={!canWriteChat}
-            maxLength={4000}
-          />
-          <Button
-            type="submit"
-            className="min-h-[40px] w-full sm:w-auto sm:self-end"
-            disabled={!canWriteChat || !composerText.trim() || socketStatus !== 'live'}
-          >
-            <Send className="h-4 w-4" />
-            Send
-          </Button>
-        </form>
-
-        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={handleRoll}>
-          <Input
-            value={rollExpression}
-            onChange={(event) => setRollExpression(event.target.value)}
-            placeholder="Roll expression, e.g. 1d20+5"
-            disabled={!canWriteChat}
-          />
-          <Input
-            value={rollLabel}
-            onChange={(event) => setRollLabel(event.target.value)}
-            placeholder="Optional label, e.g. Attack"
-            disabled={!canWriteChat}
-          />
-          <Button
-            type="submit"
-            variant="outline"
-            className="min-h-[40px] w-full sm:w-auto"
-            disabled={!canWriteChat || !rollExpression.trim() || socketStatus !== 'live' || isSendingRoll}
-          >
-            <Dices className="h-4 w-4" />
-            Roll
-          </Button>
-        </form>
       </div>
     </div>
   );
