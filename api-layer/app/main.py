@@ -16,7 +16,6 @@ from app.routers.campaigns import router as campaigns_router
 from app.routers.campaign_notes import router as campaign_notes_router
 from app.routers.campaign_allowed_packs import router as campaign_allowed_packs_router
 from app.routers.campaign_character_validation import router as campaign_character_validation_router
-from app.routers.campaign_sessions import router as campaign_sessions_router
 from app.routers.chat_messages import router as chat_http_router
 
 
@@ -49,7 +48,6 @@ app.include_router(campaigns_router)
 app.include_router(campaign_notes_router)
 app.include_router(campaign_allowed_packs_router)
 app.include_router(campaign_character_validation_router)
-app.include_router(campaign_sessions_router)
 app.include_router(chat_http_router)
 app.include_router(invites_router)
 

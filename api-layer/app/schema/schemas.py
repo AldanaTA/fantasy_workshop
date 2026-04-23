@@ -232,13 +232,6 @@ class CampaignOut(IdOut):
     created_at: datetime
     updated_at: datetime
 
-class CampaignSessionOut(IdOut):
-    campaign_id: UUID
-    started_by_user_id: UUID
-    ended_by_user_id: Optional[UUID]
-    started_at: datetime
-    ended_at: Optional[datetime]
-
 # Campaign roles (composite PK)
 class UserCampaignRoleUpsert(BaseModel):
     user_id: UUID
