@@ -180,23 +180,6 @@ CREATE INDEX IF NOT EXISTS campaign_chat_messages_campaign_id_created_at_idx
 CREATE INDEX IF NOT EXISTS campaign_chat_messages_whisper_to_gin_idx
   ON campaign_chat_messages USING GIN (whisper_to);
 
--- CAMPAIGN SESSIONS
-CREATE TABLE IF NOT EXISTS campaign_sessions (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  campaign_id        UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-  started_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  ended_by_user_id   UUID REFERENCES users(id) ON DELETE RESTRICT,
-  started_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  ended_at           TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS campaign_sessions_campaign_started_at_idx
-  ON campaign_sessions(campaign_id, started_at DESC, id DESC);
-
-CREATE UNIQUE INDEX IF NOT EXISTS campaign_sessions_one_active_per_campaign_uq
-  ON campaign_sessions(campaign_id)
-  WHERE ended_at IS NULL;
-
 -- CAMPAIGN CONTENT VERSION PINNING (campaign chooses specific versions)
 CREATE TABLE IF NOT EXISTS campaign_content_versions (
   campaign_id        UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,

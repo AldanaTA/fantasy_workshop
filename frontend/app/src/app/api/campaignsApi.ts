@@ -1,7 +1,6 @@
 import { API_CONFIG } from './apiConfig';
 import type {
   Campaign,
-  CampaignSession,
   UserCampaignRole,
   Character,
   CampaignCharacter,
@@ -45,16 +44,6 @@ export const campaignsApi = {
   listPlayer: (token?: string) => request<Campaign[]>(`/player`, { method: 'GET', headers: authHeaders(token) }),
   patch: (id: string, patch: Partial<Campaign>, token?: string) => request<Campaign>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token) }),
   delete: (id: string, token?: string) => request<void>(`/${id}`, { method: 'DELETE', headers: authHeaders(token) }),
-
-  // sessions
-  listSessions: (campaignId: string, limit = 10, token?: string) =>
-    request<CampaignSession[]>(`/${campaignId}/sessions?limit=${limit}`, { method: 'GET', headers: authHeaders(token) }),
-  getCurrentSession: (campaignId: string, token?: string) =>
-    request<CampaignSession | null>(`/${campaignId}/sessions/current`, { method: 'GET', headers: authHeaders(token) }),
-  startSession: (campaignId: string, token?: string) =>
-    request<CampaignSession>(`/${campaignId}/sessions`, { method: 'POST', headers: authHeaders(token) }),
-  endCurrentSession: (campaignId: string, token?: string) =>
-    request<CampaignSession>(`/${campaignId}/sessions/current/end`, { method: 'POST', headers: authHeaders(token) }),
 
   // roles
   upsertRole: (campaignId: string, userId: string, payload: Partial<UserCampaignRole>, token?: string) =>

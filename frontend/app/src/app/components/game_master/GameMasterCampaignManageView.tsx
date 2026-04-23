@@ -1,9 +1,9 @@
 import type { Campaign, Game } from '../../api/models';
+import { CampaignChatPanel } from '../campaigns/CampaignChatPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { GameMasterCampaignAllowedPacksView } from './GameMasterCampaignAllowedPacksView';
 import { GameMasterCampaignFormView } from './GameMasterCampaignFormView';
 import { GameMasterCampaignNotesView } from './GameMasterCampaignNotesView';
-import { GameMasterCampaignSessionsView } from './GameMasterCampaignSessionsView';
 import { GameMasterCampaignValidationView } from './GameMasterCampaignValidationView';
 import { GameMasterViewFrame } from './GameMasterViewFrame';
 
@@ -41,8 +41,8 @@ export function GameMasterCampaignManageView({
             <TabsTrigger value="notes" className="min-h-[44px] px-3">
               Notes
             </TabsTrigger>
-            <TabsTrigger value="sessions" className="min-h-[44px] px-3">
-              Sessions
+            <TabsTrigger value="timeline" className="min-h-[44px] px-3">
+              Chat
             </TabsTrigger>
           </TabsList>
         </div>
@@ -70,8 +70,8 @@ export function GameMasterCampaignManageView({
           <GameMasterCampaignNotesView campaign={campaign} embedded />
         </TabsContent>
 
-        <TabsContent value="sessions">
-          <GameMasterCampaignSessionsView campaign={campaign} embedded />
+        <TabsContent value="timeline">
+          <CampaignChatPanel campaign={campaign} accessRole="co_gm" />
         </TabsContent>
       </Tabs>
     </GameMasterViewFrame>
