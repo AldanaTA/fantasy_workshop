@@ -445,16 +445,20 @@ export function GameCreatorDashboard({
               <Card key={game.id} className="border-border">
                 <CardContent className="space-y-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <CardTitle className="text-base font-semibold">
+                    <div className="pt-2">
+                     <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="min-w-0 flex-1 break-words text-base font-semibold">
                         {game.game_name}
                       </CardTitle>
-                      <CardDescription>
+
+                      <div className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                         {game.visibility}
+                        </div>
+                      </div>
+
+                      <CardDescription className="mt-2">
                         {game.game_summary || 'No summary available.'}
                       </CardDescription>
-                      <div className="mt-2 inline-flex items-center rounded-full border border-border px-2 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                        {game.visibility}
-                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => setViewTarget(game)}>

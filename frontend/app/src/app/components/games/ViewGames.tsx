@@ -77,28 +77,27 @@ export function ViewGames({
 
             return (
               <Card key={game.id} className="border-border">
-                <CardHeader className="pb-3">
-                  <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                      <CardTitle className="break-words text-base font-semibold leading-6">
+                <CardContent>
+                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 pt-2">
+                      <div className="flex items-start justify-between gap-2">
+                      <CardTitle className=" min-w-0 flex-1 break-words text-base font-semibold leading-6">
                         {game.game_name}
-                      </CardTitle>
-                      <CardDescription className="mt-1 break-words leading-6">
-                        {game.game_summary || 'No summary available.'}
-                      </CardDescription>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
+                        </CardTitle>
+                      
+                        <div className='flex shrink-0 items-center gap-2'>
                       <Badge variant="outline" className="max-w-full whitespace-normal break-words">
                         {labelForRole(game.role)}
                       </Badge>
                       <Badge variant="secondary" className="max-w-full whitespace-normal break-words">
                         {game.visibility}
                       </Badge>
+                      </div>
+                      </div>
+                      <CardDescription className="mt-1 break-words leading-6">
+                        {game.game_summary || 'No summary available.'}
+                      </CardDescription>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-2">
                     {onOpen ? (
                       <Button
                         type="button"

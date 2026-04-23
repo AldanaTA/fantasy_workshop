@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { BookOpen, Eye, Edit3, Plus, CircleArrowLeft,Trash2, View,} from 'lucide-react';
-import { ContentPack, Game } from '../../api/models';
+import { Campaign, ContentPack, Game } from '../../api/models';
 import { contentPacksApi, invalidateContentPacksByGame } from '../../api/contentPacksApi';
 import { get_userId } from '../../api/authStorage';
 import { VISIBILITY,Visibility } from '../../types/visibility';
@@ -55,10 +55,11 @@ const emptyForm: FormState = {
 
 type Props = {
   game: Game;
+  campaign?: Campaign | null;
   onBack?: () => void;
 };
 
-export function ViewGamePacks({ game, onBack }: Props) {
+export function ViewGamePacks({ game, campaign, onBack }: Props) {
   const [contentpacks, setContentPacks] = useState<ContentPack[]>([]);
   const [isloading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +149,7 @@ export function ViewGamePacks({ game, onBack }: Props) {
         await toastPromise(contentPacksApi.create({
           owner_id: get_userId(),
           game_id: game.id,
+          campaign_id: campaign?.id ?? undefined,
           pack_name: form.pack_name.trim(),
           description: form.pack_description.trim() || undefined,
           visibility: form.visibility,
@@ -256,7 +258,9 @@ export function ViewGamePacks({ game, onBack }: Props) {
           <div className="min-w-0">
             <h2 className="break-words text-xl font-semibold">View {game.game_name} content packs</h2>
             <p className="text-sm text-muted-foreground">
-              This is where you can view the game content packs.
+              {campaign
+                ? `Create and manage packs for ${campaign.name} while staying inside the selected campaign flow.`
+                : 'This is where you can view the game content packs.'}
             </p>
           </div>
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
