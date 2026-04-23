@@ -39,6 +39,7 @@ import { STATUS, Status } from '../../types/status';
 import { useToast } from '../ui/toastProvider';
 import { ViewPackCategories } from './ViewPackCategories';
 import { GameRulesRenderer } from '../content/GameRulesRenderer';
+import type { CreatorPackResumeState } from '../../api/appResumeStorage';
 
 interface FormState {
   pack_name: string;
@@ -57,9 +58,17 @@ type Props = {
   game: Game;
   campaign?: Campaign | null;
   onBack?: () => void;
+  initialResumeState?: CreatorPackResumeState | null;
+  onResumeStateChange?: (state: CreatorPackResumeState) => void;
 };
 
-export function ViewGamePacks({ game, campaign, onBack }: Props) {
+export function ViewGamePacks({
+  game,
+  campaign,
+  onBack,
+  initialResumeState = null,
+  onResumeStateChange,
+}: Props) {
   const [contentpacks, setContentPacks] = useState<ContentPack[]>([]);
   const [isloading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +81,7 @@ export function ViewGamePacks({ game, campaign, onBack }: Props) {
   const [previewPackIds, setPreviewPackIds] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<ContentPack | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [hasRestoredState, setHasRestoredState] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement | null>(null);
   const {toastPromise} = useToast();
 
@@ -109,6 +119,39 @@ export function ViewGamePacks({ game, campaign, onBack }: Props) {
   useEffect(() => {
     resizeSummaryTextarea(summaryRef.current);
   }, [form.pack_description, isDialogOpen]);
+
+  useEffect(() => {
+    if (isloading || hasRestoredState) {
+      return;
+    }
+
+    if (!initialResumeState || initialResumeState.view === 'list') {
+      setHasRestoredState(true);
+      return;
+    }
+
+    const matchedPack = contentpacks.find((pack) => pack.id === initialResumeState.packId) ?? null;
+    if (matchedPack) {
+      setViewTarget(matchedPack);
+    } else {
+      onResumeStateChange?.({ view: 'list' });
+    }
+
+    setHasRestoredState(true);
+  }, [contentpacks, hasRestoredState, initialResumeState, isloading, onResumeStateChange]);
+
+  useEffect(() => {
+    if (!hasRestoredState) {
+      return;
+    }
+
+    if (viewTarget) {
+      onResumeStateChange?.({ view: 'categories', packId: viewTarget.id });
+      return;
+    }
+
+    onResumeStateChange?.({ view: 'list' });
+  }, [hasRestoredState, onResumeStateChange, viewTarget]);
 
   const openCreateDialog = () => {
     setDialogMode('create');
@@ -206,9 +249,21 @@ export function ViewGamePacks({ game, campaign, onBack }: Props) {
   if (viewTarget) {
     return (
       <ViewPackCategories
-      pack={viewTarget}
-      onBackToPacks={() => setViewTarget(null)}
-      onGoToDashboard={onBack}
+        pack={viewTarget}
+        initialExpandedCategoryId={
+          initialResumeState?.view === 'categories' && initialResumeState.packId === viewTarget.id
+            ? initialResumeState.expandedCategoryId ?? null
+            : null
+        }
+        onResumeStateChange={(expandedCategoryId) =>
+          onResumeStateChange?.({
+            view: 'categories',
+            packId: viewTarget.id,
+            expandedCategoryId,
+          })
+        }
+        onBackToPacks={() => setViewTarget(null)}
+        onGoToDashboard={onBack}
       />
     );
   }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole} from '../types/game';
 import { Button } from './ui/button';
@@ -13,6 +13,7 @@ import { TokenPair } from '../api/models';
 import { authApi } from '../api/authApi';
 import { get_display_name } from '../api/authStorage';
 import { clearRequestCache } from '../api/requestCache';
+import { clearResumeState, getSavedMainSection, setSavedMainSection } from '../api/appResumeStorage';
 
 /**
  * MainApp component is the root application component that manages the main
@@ -38,13 +39,29 @@ const sectionLabel: Record<UserRole, string> = {
 
 export function MainApp({ tokens, onLogout, initialSection = 'creator' }: MainAppProps) {
   const navigate = useNavigate();
-  const [currentSection, setCurrentSection] = useState<UserRole>(initialSection);
+  const [currentSection, setCurrentSection] = useState<UserRole>(() => {
+    const savedSection = getSavedMainSection();
+    if (initialSection === 'library') {
+      return 'library';
+    }
+
+    if (savedSection === 'creator' || savedSection === 'gm' || savedSection === 'player') {
+      return savedSection;
+    }
+
+    return initialSection;
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [focusedCreatorGameId, setFocusedCreatorGameId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSavedMainSection(currentSection);
+  }, [currentSection]);
 
   const handleLogout = async () => {
     await authApi.logout({ refresh_token: tokens.refresh_token });
     clearRequestCache();
+    clearResumeState();
     onLogout();
     navigate('/');
   };

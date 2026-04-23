@@ -10,6 +10,8 @@ import { GameMasterViewFrame } from './GameMasterViewFrame';
 type Props = {
   campaign: Campaign;
   games: Game[];
+  activeTab: 'details' | 'packs' | 'validation' | 'notes' | 'timeline';
+  onTabChange: (tab: 'details' | 'packs' | 'validation' | 'notes' | 'timeline') => void;
   onBack: () => void;
   onSaved: (campaign: Campaign) => Promise<void> | void;
 };
@@ -17,6 +19,8 @@ type Props = {
 export function GameMasterCampaignManageView({
   campaign,
   games,
+  activeTab,
+  onTabChange,
   onBack,
   onSaved,
 }: Props) {
@@ -26,7 +30,7 @@ export function GameMasterCampaignManageView({
       description="Edit campaign details and switch between GM tools without leaving the selected campaign."
       onBack={onBack}
     >
-      <Tabs defaultValue="details" className="min-w-0">
+      <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as typeof activeTab)} className="min-w-0">
         <div className="-mx-1 overflow-x-auto pb-1">
           <TabsList className="h-auto min-w-max gap-1 bg-muted/80 p-1">
             <TabsTrigger value="details" className="min-h-[44px] px-3">

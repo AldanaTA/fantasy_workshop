@@ -39,6 +39,12 @@ import {  Visibility, VISIBILITY} from '../../types/visibility';
 import {ViewGamePacks} from './ViewGamePacks';
 import { GameRulesRenderer } from '../content/GameRulesRenderer';
 import type { UUID } from '../../types/misc';
+import {
+  getSavedCreatorPackState,
+  getSavedCreatorState,
+  setSavedCreatorPackState,
+  setSavedCreatorState,
+} from '../../api/appResumeStorage';
 
 interface FormState {
   game_name: string;
@@ -79,6 +85,7 @@ export function GameCreatorDashboard({
   const [isShareLoading, setIsShareLoading] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [hasRestoredState, setHasRestoredState] = useState(false);
   const summaryRef = useRef<HTMLTextAreaElement | null>(null);
   const shareDialogBodyRef = useRef<HTMLDivElement | null>(null);
   const {toast, toastPromise} = useToast();
@@ -109,20 +116,63 @@ export function GameCreatorDashboard({
   }, []);
 
   useEffect(() => {
-    if (!initialViewGameId || isLoading) {
+    if (isLoading || hasRestoredState) {
       return;
     }
 
-    const matchedGame = games.find((game) => game.id === initialViewGameId) ?? null;
-    if (matchedGame) {
-      setViewTarget(matchedGame);
+    if (initialViewGameId) {
+      const matchedGame = games.find((game) => game.id === initialViewGameId) ?? null;
+      if (matchedGame) {
+        setViewTarget(matchedGame);
+      }
+      onInitialViewHandled?.();
+      setHasRestoredState(true);
+      return;
     }
-    onInitialViewHandled?.();
-  }, [games, initialViewGameId, isLoading, onInitialViewHandled]);
+
+    const savedState = getSavedCreatorState();
+    if (!savedState || savedState.view === 'list') {
+      setHasRestoredState(true);
+      return;
+    }
+
+    const matchedGame = games.find((game) => game.id === savedState.gameId) ?? null;
+    if (!matchedGame) {
+      setSavedCreatorState({ view: 'list' });
+      setHasRestoredState(true);
+      return;
+    }
+
+    if (savedState.view === 'packs') {
+      setViewTarget(matchedGame);
+    } else {
+      setPreviewTarget(matchedGame);
+    }
+
+    setHasRestoredState(true);
+  }, [games, hasRestoredState, initialViewGameId, isLoading, onInitialViewHandled]);
 
   useEffect(() => {
     resizeSummaryTextarea(summaryRef.current);
   }, [form.game_summary, isDialogOpen]);
+
+  useEffect(() => {
+    if (!hasRestoredState) {
+      return;
+    }
+
+    if (viewTarget) {
+      setSavedCreatorState({ view: 'packs', gameId: viewTarget.id });
+      return;
+    }
+
+    if (previewTarget) {
+      setSavedCreatorState({ view: 'preview', gameId: previewTarget.id });
+      return;
+    }
+
+    setSavedCreatorState({ view: 'list' });
+  }, [hasRestoredState, previewTarget, viewTarget]);
 
   const openCreateDialog = () => {
     setDialogMode('create');
@@ -372,8 +422,10 @@ export function GameCreatorDashboard({
   if (viewTarget) {
     return (
       <ViewGamePacks 
-      game={viewTarget}
-      onBack={() => setViewTarget(null)}
+        game={viewTarget}
+        initialResumeState={getSavedCreatorPackState(viewTarget.id)}
+        onResumeStateChange={(state) => setSavedCreatorPackState(viewTarget.id, state)}
+        onBack={() => setViewTarget(null)}
       />
     );
   }

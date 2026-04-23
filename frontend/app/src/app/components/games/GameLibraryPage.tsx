@@ -7,6 +7,7 @@ import { GameRulesRenderer } from '../content/GameRulesRenderer';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
 import { ViewGames } from './ViewGames';
+import { getSavedLibraryState, setSavedLibraryState } from '../../api/appResumeStorage';
 
 interface GameLibraryPageProps {
   onManageGame?: (game: LibraryGame) => void;
@@ -21,6 +22,7 @@ export function GameLibraryPage({ onManageGame }: GameLibraryPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewTarget, setPreviewTarget] = useState<LibraryGame | null>(null);
+  const [hasRestoredState, setHasRestoredState] = useState(false);
 
   const loadGames = async (signal?: AbortSignal) => {
     setIsLoading(true);
@@ -47,6 +49,41 @@ export function GameLibraryPage({ onManageGame }: GameLibraryPageProps) {
       controller.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasRestoredState) {
+      return;
+    }
+
+    if (previewTarget) {
+      setSavedLibraryState({ view: 'preview', gameId: previewTarget.id });
+      return;
+    }
+
+    setSavedLibraryState({ view: 'list' });
+  }, [hasRestoredState, previewTarget]);
+
+  useEffect(() => {
+    if (isLoading || hasRestoredState) {
+      return;
+    }
+
+    const savedState = getSavedLibraryState();
+    if (!savedState || savedState.view === 'list') {
+      setHasRestoredState(true);
+      return;
+    }
+
+    const matchedGame = games.find((game) => game.id === savedState.gameId) ?? null;
+    if (!matchedGame) {
+      setSavedLibraryState({ view: 'list' });
+      setHasRestoredState(true);
+      return;
+    }
+
+    setPreviewTarget(matchedGame);
+    setHasRestoredState(true);
+  }, [games, hasRestoredState, isLoading]);
 
   if (previewTarget) {
     return (

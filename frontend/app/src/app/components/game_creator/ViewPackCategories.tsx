@@ -55,11 +55,19 @@ type ContentMakerTarget = {
 
 type Props = {
   pack: ContentPack;
+  initialExpandedCategoryId?: string | null;
+  onResumeStateChange?: (expandedCategoryId: string | null) => void;
   onBackToPacks?: () => void;
   onGoToDashboard?: () => void;
 };
 
-export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Props) {
+export function ViewPackCategories({
+  pack,
+  initialExpandedCategoryId = null,
+  onResumeStateChange,
+  onBackToPacks,
+  onGoToDashboard,
+}: Props) {
   const [contentCategories, setContentCategories] = useState<ContentCategory[]>([]);
   const [isloading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +83,7 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
   const [contentMakerTarget, setContentMakerTarget] = useState<ContentMakerTarget | null>(null);
   const [categoryContent, setCategoryContent] = useState<Record<string, CategoryContentState>>({});
   const [isOrderDirty, setIsOrderDirty] = useState(false);
+  const [hasRestoredState, setHasRestoredState] = useState(false);
   const categoryContentController = useRef<AbortController | null>(null);
   const {toastPromise} = useToast();
 
@@ -163,6 +172,29 @@ export function ViewPackCategories({ pack, onBackToPacks, onGoToDashboard }: Pro
       categoryContentController.current = null;
     };
   }, [pack.id]);
+
+  useEffect(() => {
+    if (isloading || hasRestoredState) {
+      return;
+    }
+
+    if (!initialExpandedCategoryId || !contentCategories.some((category) => category.id === initialExpandedCategoryId)) {
+      setHasRestoredState(true);
+      return;
+    }
+
+    setExpandedCategoryId(initialExpandedCategoryId);
+    void loadCategoryContent(initialExpandedCategoryId);
+    setHasRestoredState(true);
+  }, [contentCategories, hasRestoredState, initialExpandedCategoryId, isloading]);
+
+  useEffect(() => {
+    if (!hasRestoredState) {
+      return;
+    }
+
+    onResumeStateChange?.(expandedCategoryId);
+  }, [expandedCategoryId, hasRestoredState, onResumeStateChange]);
 
 
   const openCreateDialog = () => {

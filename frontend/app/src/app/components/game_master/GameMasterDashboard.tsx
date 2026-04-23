@@ -9,11 +9,12 @@ import { GameMasterCampaignFormView } from './GameMasterCampaignFormView';
 import { GameMasterCampaignListView } from './GameMasterCampaignListView';
 import { GameMasterCampaignManageView } from './GameMasterCampaignManageView';
 import { GameMasterCampaignShareView } from './GameMasterCampaignShareView';
+import { getSavedGameMasterState, setSavedGameMasterState } from '../../api/appResumeStorage';
 
 type GameMasterMode =
   | { type: 'list' }
   | { type: 'create' }
-  | { type: 'manage'; campaign: Campaign }
+  | { type: 'manage'; campaign: Campaign; tab: 'details' | 'packs' | 'validation' | 'notes' | 'timeline' }
   | { type: 'share'; campaign: Campaign };
 
 interface GameMasterDashboardProps {
@@ -32,6 +33,7 @@ export function GameMasterDashboard({
   const [error, setError] = useState<string | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [mode, setMode] = useState<GameMasterMode>({ type: 'list' });
+  const [hasRestoredState, setHasRestoredState] = useState(false);
 
   const loadDashboardData = async () => {
     setIsLoading(true);
@@ -60,17 +62,73 @@ export function GameMasterDashboard({
   }, []);
 
   useEffect(() => {
-    if (!initialViewGameId || isLoading) {
+    if (isLoading || hasRestoredState) {
       return;
     }
 
-    const matchedCampaign = campaigns.find((campaign) => campaign.id === initialViewGameId) ?? null;
-    if (matchedCampaign) {
-      setSelectedCampaignId(matchedCampaign.id);
-      setMode({ type: 'manage', campaign: matchedCampaign });
+    if (initialViewGameId) {
+      const matchedCampaign = campaigns.find((campaign) => campaign.id === initialViewGameId) ?? null;
+      if (matchedCampaign) {
+        setSelectedCampaignId(matchedCampaign.id);
+        setMode({ type: 'manage', campaign: matchedCampaign, tab: 'details' });
+      }
+      onInitialViewHandled?.();
+      setHasRestoredState(true);
+      return;
     }
-    onInitialViewHandled?.();
-  }, [campaigns, initialViewGameId, isLoading, onInitialViewHandled]);
+
+    const savedState = getSavedGameMasterState();
+    if (!savedState) {
+      setHasRestoredState(true);
+      return;
+    }
+
+    if (savedState.view === 'list' || savedState.view === 'create') {
+      if (savedState.selectedCampaignId && campaigns.some((campaign) => campaign.id === savedState.selectedCampaignId)) {
+        setSelectedCampaignId(savedState.selectedCampaignId);
+      }
+      if (savedState.view === 'create') {
+        setMode({ type: 'create' });
+      }
+      setHasRestoredState(true);
+      return;
+    }
+
+    const matchedCampaign = campaigns.find((campaign) => campaign.id === savedState.campaignId) ?? null;
+    if (!matchedCampaign) {
+      setSavedGameMasterState({ view: 'list', selectedCampaignId: campaigns[0]?.id ?? null });
+      setHasRestoredState(true);
+      return;
+    }
+
+    setSelectedCampaignId(matchedCampaign.id);
+    setMode({
+      type: savedState.view,
+      campaign: matchedCampaign,
+      tab: savedState.tab ?? 'details',
+    });
+    setHasRestoredState(true);
+  }, [campaigns, hasRestoredState, initialViewGameId, isLoading, onInitialViewHandled]);
+
+  useEffect(() => {
+    if (!hasRestoredState) {
+      return;
+    }
+
+    if (mode.type === 'manage' || mode.type === 'share') {
+      setSavedGameMasterState(
+        mode.type === 'manage'
+          ? { view: 'manage', campaignId: mode.campaign.id, tab: mode.tab }
+          : { view: 'share', campaignId: mode.campaign.id },
+      );
+      return;
+    }
+
+    setSavedGameMasterState({
+      view: mode.type,
+      selectedCampaignId,
+    });
+  }, [hasRestoredState, mode, selectedCampaignId]);
 
   const selectedCampaign = useMemo(
     () => campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null,
@@ -91,7 +149,11 @@ export function GameMasterDashboard({
   const handleSavedCampaign = async (savedCampaign: Campaign) => {
     const nextCampaigns = await refreshCampaigns(savedCampaign.id);
     const freshCampaign = nextCampaigns.find((campaign) => campaign.id === savedCampaign.id) ?? savedCampaign;
-    setMode({ type: 'manage', campaign: freshCampaign });
+    setMode((prev) => ({
+      type: 'manage',
+      campaign: freshCampaign,
+      tab: prev.type === 'manage' ? prev.tab : 'details',
+    }));
   };
 
   const handleDeleteCampaign = async (campaign: Campaign) => {
@@ -123,6 +185,8 @@ export function GameMasterDashboard({
     return (
       <GameMasterCampaignManageView
         campaign={mode.campaign}
+        activeTab={mode.tab}
+        onTabChange={(tab) => setMode((prev) => prev.type === 'manage' ? { ...prev, tab } : prev)}
         games={games}
         onBack={() => setMode({ type: 'list' })}
         onSaved={handleSavedCampaign}
@@ -150,7 +214,7 @@ export function GameMasterDashboard({
           return;
         }
 
-        setSelectedCampaignId(campaign.id);
+          setSelectedCampaignId(campaign.id);
 
         if (action === 'delete') {
           void handleDeleteCampaign(campaign);
@@ -158,7 +222,7 @@ export function GameMasterDashboard({
         }
 
         if (action === 'manage') {
-          setMode({ type: 'manage', campaign });
+          setMode({ type: 'manage', campaign, tab: 'details' });
           return;
         }
 

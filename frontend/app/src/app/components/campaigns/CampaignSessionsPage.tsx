@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
+import { getSavedCampaignSessionsState, setSavedCampaignSessionsState } from '../../api/appResumeStorage';
 
 type CampaignSessionsPageProps = {
   role: 'gm' | 'player';
@@ -18,6 +19,7 @@ export function CampaignSessionsPage({ role }: CampaignSessionsPageProps) {
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasRestoredState, setHasRestoredState] = useState(false);
 
   const loadCampaigns = async (signal?: AbortSignal) => {
     setIsLoading(true);
@@ -32,8 +34,15 @@ export function CampaignSessionsPage({ role }: CampaignSessionsPageProps) {
       setCampaigns(nextCampaigns);
       setExpandedCampaignId((prev) => {
         if (prev && nextCampaigns.some((campaign) => campaign.id === prev)) return prev;
+        if (!hasRestoredState) {
+          const savedExpandedCampaignId = getSavedCampaignSessionsState(role)?.expandedCampaignId;
+          if (savedExpandedCampaignId && nextCampaigns.some((campaign) => campaign.id === savedExpandedCampaignId)) {
+            return savedExpandedCampaignId;
+          }
+        }
         return nextCampaigns[0]?.id ?? null;
       });
+      setHasRestoredState(true);
     } catch (err) {
       if (isAbortError(err)) return;
       setCampaigns([]);
@@ -49,7 +58,15 @@ export function CampaignSessionsPage({ role }: CampaignSessionsPageProps) {
     void loadCampaigns(controller.signal);
 
     return () => controller.abort();
-  }, [role]);
+  }, [hasRestoredState, role]);
+
+  useEffect(() => {
+    if (!hasRestoredState) {
+      return;
+    }
+
+    setSavedCampaignSessionsState(role, { expandedCampaignId });
+  }, [expandedCampaignId, hasRestoredState, role]);
 
   return (
     <div className="grid min-w-0 gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
