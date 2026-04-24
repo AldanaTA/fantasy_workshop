@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import {ToastProvider, useToast} from  '../ui/toastProvider';
+import { useToast } from '../ui/toastProvider';
 import {
   Select,
   SelectContent,
@@ -36,7 +36,6 @@ import { Game, GameShareLink } from '../../api/models';
 import { gamesApi } from '../../api/gamesApi';
 import { get_userId } from '../../api/authStorage';
 import {  Visibility, VISIBILITY} from '../../types/visibility';
-import {ViewGamePacks} from './ViewGamePacks';
 import { GameRulesRenderer } from '../content/GameRulesRenderer';
 import type { UUID } from '../../types/misc';
 import {
@@ -45,6 +44,7 @@ import {
   setSavedCreatorPackState,
   setSavedCreatorState,
 } from '../../api/appResumeStorage';
+import { GamePackWorkspace } from '../game_packs/GamePackWorkspace';
 
 interface FormState {
   game_name: string;
@@ -74,7 +74,8 @@ export function GameCreatorDashboard({
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
   const [activeGame, setActiveGame] = useState<Game | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [viewTarget, setViewTarget] = useState<Game | null>(null);
+  const [packWorkspaceGameId, setPackWorkspaceGameId] = useState<string | null>(initialViewGameId);
+  const [isPackWorkspaceOpen, setIsPackWorkspaceOpen] = useState(Boolean(initialViewGameId));
   const [previewTarget, setPreviewTarget] = useState<Game | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
   const [shareTarget, setShareTarget] = useState<Game | null>(null);
@@ -121,10 +122,8 @@ export function GameCreatorDashboard({
     }
 
     if (initialViewGameId) {
-      const matchedGame = games.find((game) => game.id === initialViewGameId) ?? null;
-      if (matchedGame) {
-        setViewTarget(matchedGame);
-      }
+      setPackWorkspaceGameId(initialViewGameId);
+      setIsPackWorkspaceOpen(true);
       onInitialViewHandled?.();
       setHasRestoredState(true);
       return;
@@ -136,6 +135,13 @@ export function GameCreatorDashboard({
       return;
     }
 
+    if (savedState.view === 'packs') {
+      setPackWorkspaceGameId(savedState.gameId);
+      setIsPackWorkspaceOpen(true);
+      setHasRestoredState(true);
+      return;
+    }
+
     const matchedGame = games.find((game) => game.id === savedState.gameId) ?? null;
     if (!matchedGame) {
       setSavedCreatorState({ view: 'list' });
@@ -143,11 +149,7 @@ export function GameCreatorDashboard({
       return;
     }
 
-    if (savedState.view === 'packs') {
-      setViewTarget(matchedGame);
-    } else {
-      setPreviewTarget(matchedGame);
-    }
+    setPreviewTarget(matchedGame);
 
     setHasRestoredState(true);
   }, [games, hasRestoredState, initialViewGameId, isLoading, onInitialViewHandled]);
@@ -161,8 +163,8 @@ export function GameCreatorDashboard({
       return;
     }
 
-    if (viewTarget) {
-      setSavedCreatorState({ view: 'packs', gameId: viewTarget.id });
+    if (isPackWorkspaceOpen && packWorkspaceGameId) {
+      setSavedCreatorState({ view: 'packs', gameId: packWorkspaceGameId });
       return;
     }
 
@@ -172,7 +174,7 @@ export function GameCreatorDashboard({
     }
 
     setSavedCreatorState({ view: 'list' });
-  }, [hasRestoredState, previewTarget, viewTarget]);
+  }, [hasRestoredState, isPackWorkspaceOpen, packWorkspaceGameId, previewTarget]);
 
   const openCreateDialog = () => {
     setDialogMode('create');
@@ -419,13 +421,17 @@ export function GameCreatorDashboard({
     }
   
   };
-  if (viewTarget) {
+  if (isPackWorkspaceOpen) {
     return (
-      <ViewGamePacks 
-        game={viewTarget}
-        initialResumeState={getSavedCreatorPackState(viewTarget.id)}
-        onResumeStateChange={(state) => setSavedCreatorPackState(viewTarget.id, state)}
-        onBack={() => setViewTarget(null)}
+      <GamePackWorkspace
+        mode="creator"
+        initialGameId={packWorkspaceGameId}
+        getPackResumeState={getSavedCreatorPackState}
+        onPackResumeStateChange={setSavedCreatorPackState}
+        onBack={() => {
+          setIsPackWorkspaceOpen(false);
+          setPackWorkspaceGameId(null);
+        }}
       />
     );
   }
@@ -465,16 +471,30 @@ export function GameCreatorDashboard({
           <div>
             <h2 className="text-xl font-semibold">Creator Dashboard</h2>
             <p className="text-sm text-muted-foreground">
-              Manage games you can edit or own.
+              Manage games you can edit or own, then jump into pack workspaces for editable or purchased games.
             </p>
           </div>
-          <Button
-            onClick={openCreateDialog}
-            className="min-h-[44px]"
-          >
-            <Plus className="h-4 w-4" />
-            Make Game
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPackWorkspaceGameId(null);
+                setIsPackWorkspaceOpen(true);
+              }}
+              className="min-h-[44px]"
+            >
+              <BookOpen className="h-4 w-4" />
+              Pack Workspace
+            </Button>
+            <Button
+              onClick={openCreateDialog}
+              className="min-h-[44px]"
+            >
+              <Plus className="h-4 w-4" />
+              Make Game
+            </Button>
+          </div>
         </div>
 
         <Separator />
@@ -513,7 +533,14 @@ export function GameCreatorDashboard({
                       </CardDescription>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setViewTarget(game)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setPackWorkspaceGameId(game.id);
+                          setIsPackWorkspaceOpen(true);
+                        }}
+                      >
                         <Eye className="h-3.5 w-3.5" />
                         Packs
                       </Button>

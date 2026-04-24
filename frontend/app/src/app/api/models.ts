@@ -291,6 +291,12 @@ export interface CampaignContentVersion {
 	pinned_at: DateTime;
 }
 
+export interface CampaignContentVersionUpsert {
+	campaign_id: UUID;
+	content_id: UUID;
+	pinned_version_num: number;
+}
+
 export interface CampaignEvent {
 	id: UUID;
 	campaign_id: UUID;

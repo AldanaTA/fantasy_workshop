@@ -12,6 +12,7 @@ import type {
   CampaignNoteUpdateInput,
   CampaignAllowedPack,
   CampaignContentVersion,
+  CampaignContentVersionUpsert,
   CampaignEvent,
   CampaignCharacterStateSnapshot,
   CampaignCharacterLatestSnapshot,
@@ -260,7 +261,7 @@ export const campaignsApi = {
     }),
 
   // pins
-  upsertPin: (campaignId: string, contentId: string, payload: Partial<CampaignContentVersion>, token?: string) =>
+  upsertPin: (campaignId: string, contentId: string, payload: CampaignContentVersionUpsert, token?: string) =>
     request<CampaignContentVersion>(`/${campaignId}/pins/${contentId}`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token) }).then((pin) => {
       invalidateCacheByPrefix(campaignsCacheKeys.pins(campaignId));
       return pin;

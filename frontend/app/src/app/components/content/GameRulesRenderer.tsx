@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, Search } from 'lucide-react';
+import { campaignsApi } from '../../api/campaignsApi';
 import { contentApi } from '../../api/contentApi';
 import { contentCategoriesApi } from '../../api/contentCategoriesApi';
 import { contentPacksApi } from '../../api/contentPacksApi';
-import type { Content, ContentCategory, ContentPack, ContentVersion, ContentWithActiveVersion } from '../../api/models';
+import type { CampaignContentVersion, Content, ContentCategory, ContentPack, ContentVersion, ContentWithActiveVersion } from '../../api/models';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -12,7 +14,9 @@ import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Separator } from '../ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { cn } from '../ui/utils';
+import { useToast } from '../ui/toastProvider';
 import { ContentRender, type ContentRenderProps } from './ContentRender';
 
 export type ContentRulesFilters = {
@@ -27,6 +31,7 @@ export type ContentRulesFilters = {
 
 export type GameRulesRendererProps = {
   gameId: string;
+  campaignId?: string;
   selectedPackIds?: string[];
   onSelectedPackIdsChange?: (packIds: string[]) => void;
   packMode?: 'single' | 'multi';
@@ -42,6 +47,7 @@ export type GameRulesRendererProps = {
 type RulebookContentItem = {
   content: Content;
   activeVersion?: ContentVersion;
+  legacyVersions: ContentVersion[];
   error?: string;
   searchText: string;
 };
@@ -76,6 +82,7 @@ const CONTENT_PAGE_SIZE = 20;
 
 export function GameRulesRenderer({
   gameId,
+  campaignId,
   selectedPackIds,
   onSelectedPackIdsChange,
   packMode = 'multi',
@@ -86,12 +93,15 @@ export function GameRulesRenderer({
   onRoll,
   className,
 }: GameRulesRendererProps) {
+  const { toast } = useToast();
   const [state, setState] = useState<LoadState>({
     packs: [],
     isLoading: true,
     error: null,
   });
   const [packRulebooks, setPackRulebooks] = useState<Record<string, RulebookPack>>({});
+  const [campaignPins, setCampaignPins] = useState<Record<string, CampaignContentVersion>>({});
+  const [pendingPinnedContentId, setPendingPinnedContentId] = useState<string | null>(null);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [internalPackIds, setInternalPackIds] = useState<string[]>([]);
   const [internalFilters, setInternalFilters] = useState<ContentRulesFilters>({});
@@ -113,6 +123,32 @@ export function GameRulesRenderer({
     ],
   );
   const activePackIds = selectedPackIds ?? internalPackIds;
+
+  useEffect(() => {
+    if (!campaignId) {
+      setCampaignPins({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPins = async () => {
+      try {
+        const pins = await campaignsApi.listPins(campaignId);
+        if (cancelled) return;
+        setCampaignPins(Object.fromEntries(pins.map((pin) => [pin.content_id, pin])));
+      } catch {
+        if (cancelled) return;
+        setCampaignPins({});
+      }
+    };
+
+    void loadPins();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -244,7 +280,21 @@ export function GameRulesRenderer({
 
     try {
       const contentRows = await contentApi.listByCategoryWithActive(category.id, CONTENT_PAGE_SIZE, offset, true, { signal: controller.signal });
-      const items = contentRows.map((row) => createRulebookContentItem(row, category));
+      const items = await Promise.all(
+        contentRows.map(async (row) => {
+          if (visibility !== 'gm') {
+            return createRulebookContentItem(row, category);
+          }
+
+          try {
+            const versions = await contentApi.listVersions(row.content.id, { signal: controller.signal });
+            return createRulebookContentItem(row, category, versions);
+          } catch (err) {
+            if (isAbortError(err)) throw err;
+            return createRulebookContentItem(row, category);
+          }
+        }),
+      );
 
       setPackRulebooks((prev) => updateCategory(prev, packId, category.id, (categoryGroup) => ({
         ...categoryGroup,
@@ -309,6 +359,50 @@ export function GameRulesRenderer({
     }
   };
 
+  const handlePinnedVersionChange = async (contentId: string, value: string) => {
+    if (!campaignId) return;
+
+    setPendingPinnedContentId(contentId);
+
+    try {
+      if (value === 'active') {
+        await campaignsApi.deletePin(campaignId, contentId);
+        setCampaignPins((prev) => {
+          const next = { ...prev };
+          delete next[contentId];
+          return next;
+        });
+        toast({
+          title: 'Rule version reset',
+          description: 'This rule now follows the game default active version.',
+          variant: 'success',
+        });
+        return;
+      }
+
+      const pinnedVersionNum = Number(value);
+      const pin = await campaignsApi.upsertPin(campaignId, contentId, {
+        campaign_id: campaignId,
+        content_id: contentId,
+        pinned_version_num: pinnedVersionNum,
+      });
+      setCampaignPins((prev) => ({ ...prev, [contentId]: pin }));
+      toast({
+        title: 'Rule version pinned',
+        description: `This campaign now uses v${pinnedVersionNum} for this rule.`,
+        variant: 'success',
+      });
+    } catch (err) {
+      toast({
+        title: 'Unable to update rule version',
+        description: (err as Error)?.message || 'The campaign rule version could not be updated.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPendingPinnedContentId(null);
+    }
+  };
+
   if (state.isLoading) {
     return <RulesStateMessage className={className} title="Loading rules" message="Gathering available rule packs." />;
   }
@@ -341,8 +435,12 @@ export function GameRulesRenderer({
               expandedCategoryId={expandedCategoryId}
               mode={mode}
               visibility={visibility}
+              campaignId={campaignId}
+              campaignPins={campaignPins}
+              pendingPinnedContentId={pendingPinnedContentId}
               onToggleCategory={toggleCategory}
               onLoadMore={loadCategoryContent}
+              onPinnedVersionChange={handlePinnedVersionChange}
               onRoll={onRoll}
             />
           ))}
@@ -435,16 +533,24 @@ function RulePackSection({
   expandedCategoryId,
   mode,
   visibility,
+  campaignId,
+  campaignPins,
+  pendingPinnedContentId,
   onToggleCategory,
   onLoadMore,
+  onPinnedVersionChange,
   onRoll,
 }: {
   packGroup: RulebookPack;
   expandedCategoryId: string | null;
   mode: 'compact' | 'full';
   visibility: 'player' | 'gm';
+  campaignId?: string;
+  campaignPins: Record<string, CampaignContentVersion>;
+  pendingPinnedContentId: string | null;
   onToggleCategory: (packId: string, category: ContentCategory) => void;
   onLoadMore: (packId: string, category: ContentCategory) => void;
+  onPinnedVersionChange: (contentId: string, value: string) => Promise<void>;
   onRoll?: ContentRenderProps['onRoll'];
 }) {
   return (
@@ -473,8 +579,12 @@ function RulePackSection({
               isExpanded={expandedCategoryId === categoryGroup.category.id}
               mode={mode}
               visibility={visibility}
+              campaignId={campaignId}
+              campaignPins={campaignPins}
+              pendingPinnedContentId={pendingPinnedContentId}
               onToggleCategory={onToggleCategory}
               onLoadMore={onLoadMore}
+              onPinnedVersionChange={onPinnedVersionChange}
               onRoll={onRoll}
             />
           ))}
@@ -492,8 +602,12 @@ function RuleCategorySection({
   isExpanded,
   mode,
   visibility,
+  campaignId,
+  campaignPins,
+  pendingPinnedContentId,
   onToggleCategory,
   onLoadMore,
+  onPinnedVersionChange,
   onRoll,
 }: {
   packId: string;
@@ -501,8 +615,12 @@ function RuleCategorySection({
   isExpanded: boolean;
   mode: 'compact' | 'full';
   visibility: 'player' | 'gm';
+  campaignId?: string;
+  campaignPins: Record<string, CampaignContentVersion>;
+  pendingPinnedContentId: string | null;
   onToggleCategory: (packId: string, category: ContentCategory) => void;
   onLoadMore: (packId: string, category: ContentCategory) => void;
+  onPinnedVersionChange: (contentId: string, value: string) => Promise<void>;
   onRoll?: ContentRenderProps['onRoll'];
 }) {
   return (
@@ -536,6 +654,10 @@ function RuleCategorySection({
                     item={item}
                     mode={mode}
                     visibility={visibility}
+                    campaignId={campaignId}
+                    pinnedVersionNum={campaignPins[item.content.id]?.pinned_version_num}
+                    isUpdatingVersion={pendingPinnedContentId === item.content.id}
+                    onPinnedVersionChange={onPinnedVersionChange}
                     onRoll={onRoll}
                   />
                 ))}
@@ -565,14 +687,31 @@ function RuleContentItem({
   item,
   mode,
   visibility,
+  campaignId,
+  pinnedVersionNum,
+  isUpdatingVersion,
+  onPinnedVersionChange,
   onRoll,
 }: {
   item: RulebookContentItem;
   mode: 'compact' | 'full';
   visibility: 'player' | 'gm';
+  campaignId?: string;
+  pinnedVersionNum?: number;
+  isUpdatingVersion: boolean;
+  onPinnedVersionChange: (contentId: string, value: string) => Promise<void>;
   onRoll?: ContentRenderProps['onRoll'];
 }) {
-  if (!item.activeVersion) {
+  const availableVersions = [
+    ...(item.activeVersion ? [item.activeVersion] : []),
+    ...item.legacyVersions,
+  ].sort((a, b) => b.version_num - a.version_num);
+  const effectiveVersion = availableVersions.find((version) => version.version_num === pinnedVersionNum)
+    ?? item.activeVersion
+    ?? availableVersions[0];
+  const comparisonVersions = availableVersions.filter((version) => version.version_num !== effectiveVersion?.version_num);
+
+  if (!effectiveVersion) {
     return (
       <Alert className="rounded-md bg-background">
         <AlertCircle className="h-4 w-4" />
@@ -583,14 +722,92 @@ function RuleContentItem({
   }
 
   return (
-    <ContentRender
-      fields={item.activeVersion.fields}
-      contentName={item.content.name}
-      summary={item.content.summary}
-      mode={mode}
-      visibility={visibility}
-      onRoll={onRoll}
-    />
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">
+          {pinnedVersionNum ? `In Effect v${effectiveVersion.version_num}` : `Active v${effectiveVersion.version_num}`}
+        </Badge>
+        {pinnedVersionNum && item.activeVersion && pinnedVersionNum !== item.activeVersion.version_num ? (
+          <Badge variant="outline">Default active v{item.activeVersion.version_num}</Badge>
+        ) : null}
+        {comparisonVersions.length ? (
+          <Badge variant="outline">{comparisonVersions.length} other versions</Badge>
+        ) : null}
+      </div>
+
+      {visibility === 'gm' && campaignId && availableVersions.length ? (
+        <div className="grid gap-2 rounded-md border border-border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_240px] sm:items-center">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Campaign Rule Version</p>
+            <p className="text-xs text-muted-foreground">
+              Pick the version this table is using. Choose active to follow the game default.
+            </p>
+          </div>
+          <Select
+            value={pinnedVersionNum ? String(pinnedVersionNum) : 'active'}
+            onValueChange={(value) => void onPinnedVersionChange(item.content.id, value)}
+            disabled={isUpdatingVersion}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Choose version" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">
+                {item.activeVersion ? `Use active default (v${item.activeVersion.version_num})` : 'Use active default'}
+              </SelectItem>
+              {availableVersions.map((version) => (
+                <SelectItem key={version.id} value={String(version.version_num)}>
+                  v{version.version_num}{version.version_num === item.activeVersion?.version_num ? ' (active)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+
+      <ContentRender
+        fields={effectiveVersion.fields}
+        contentName={item.content.name}
+        summary={item.content.summary}
+        mode={mode}
+        visibility={visibility}
+        onRoll={onRoll}
+      />
+
+      {visibility === 'gm' && comparisonVersions.length ? (
+        <Accordion type="single" collapsible className="rounded-md border border-border bg-background">
+          <AccordionItem value="other-versions" className="border-b-0">
+            <AccordionTrigger className="px-4 py-3 text-sm font-medium hover:no-underline">
+              <span className="flex flex-wrap items-center gap-2">
+                <span>Other Versions</span>
+                <Badge variant="outline">{comparisonVersions.length}</Badge>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="space-y-4">
+                {comparisonVersions.map((version) => (
+                  <div key={version.id} className="space-y-3 rounded-md border border-dashed border-border p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">
+                        {version.version_num === item.activeVersion?.version_num ? `Default active v${version.version_num}` : `Version v${version.version_num}`}
+                      </Badge>
+                    </div>
+                    <ContentRender
+                      fields={version.fields}
+                      contentName={`${item.content.name} (v${version.version_num})`}
+                      summary={item.content.summary}
+                      mode={mode}
+                      visibility={visibility}
+                      onRoll={onRoll}
+                    />
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : null}
+    </div>
   );
 }
 
@@ -626,13 +843,19 @@ function InlineLoading({ message }: { message: string }) {
 function createRulebookContentItem(
   row: ContentWithActiveVersion,
   category: ContentCategory,
+  versions: ContentVersion[] = [],
 ): RulebookContentItem {
   const activeVersion = row.active_version ?? undefined;
+  const legacyVersions = versions
+    .filter((version) => version.version_num !== activeVersion?.version_num)
+    .sort((a, b) => b.version_num - a.version_num);
+
   return {
     content: row.content,
     activeVersion,
+    legacyVersions,
     error: row.error || 'No active version found.',
-    searchText: buildRuleSearchText(row.content, category, activeVersion),
+    searchText: buildRuleSearchText(row.content, category, activeVersion, legacyVersions),
   };
 }
 
@@ -728,10 +951,11 @@ function matchesRulesFilters(
   visibility: 'player' | 'gm',
   search?: string,
 ) {
-  if (!item.activeVersion && visibility === 'player') return false;
-  if (!item.activeVersion && !filters.includeNoActiveVersion) return false;
+  const filterVersion = item.activeVersion ?? item.legacyVersions[0];
+  if (!filterVersion && visibility === 'player') return false;
+  if (!filterVersion && !filters.includeNoActiveVersion) return false;
 
-  const fields = item.activeVersion?.fields;
+  const fields = filterVersion?.fields;
   const maybeTypedFields = fields as {
     content_type?: string;
     tags?: string[];
@@ -753,23 +977,35 @@ function matchesRulesFilters(
   return !search || item.searchText.includes(search);
 }
 
-function buildRuleSearchText(content: Content, category: ContentCategory, activeVersion?: ContentVersion) {
-  const fields = activeVersion?.fields as {
-    content_type?: string;
-    tags?: string[];
-    system?: { id?: string };
-    render?: { short_text?: string; long_text?: string };
-  } | undefined;
+function buildRuleSearchText(
+  content: Content,
+  category: ContentCategory,
+  activeVersion?: ContentVersion,
+  legacyVersions: ContentVersion[] = [],
+) {
+  const collectFields = (version?: ContentVersion) => {
+    const fields = version?.fields as {
+      content_type?: string;
+      tags?: string[];
+      system?: { id?: string };
+      render?: { short_text?: string; long_text?: string };
+    } | undefined;
+
+    return [
+      fields?.content_type,
+      fields?.system?.id,
+      fields?.render?.short_text,
+      fields?.render?.long_text,
+      ...(fields?.tags ?? []),
+    ];
+  };
 
   return [
     content.name,
     content.summary,
     category.name,
-    fields?.content_type,
-    fields?.system?.id,
-    fields?.render?.short_text,
-    fields?.render?.long_text,
-    ...(fields?.tags ?? []),
+    ...collectFields(activeVersion),
+    ...legacyVersions.flatMap((version) => [`version ${version.version_num}`, `legacy v${version.version_num}`, ...collectFields(version)]),
   ]
     .filter(Boolean)
     .join(' ')

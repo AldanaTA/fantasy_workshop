@@ -9,7 +9,7 @@ export type CreatorPackResumeState =
   | { view: 'list' }
   | { view: 'categories'; packId: string; expandedCategoryId?: string | null };
 
-export type GameMasterManageTab = 'details' | 'packs' | 'validation' | 'notes' | 'timeline';
+export type GameMasterManageTab = 'details' | 'packs' | 'game-packs' | 'rules' | 'validation' | 'notes' | 'timeline';
 
 type LibraryResumeState =
   | { view: 'list' }
@@ -160,13 +160,19 @@ export function getSavedGameMasterState(): GameMasterResumeState | null {
   }
 
   if (value.view === 'manage' && typeof value.campaignId === 'string' && value.campaignId) {
+    const isValidTab =
+      value.tab === 'details'
+      || value.tab === 'packs'
+      || value.tab === 'game-packs'
+      || value.tab === 'rules'
+      || value.tab === 'validation'
+      || value.tab === 'notes'
+      || value.tab === 'timeline';
+
     return {
       view: 'manage',
       campaignId: value.campaignId,
-      tab:
-        value.tab === 'details' || value.tab === 'packs' || value.tab === 'validation' || value.tab === 'notes' || value.tab === 'timeline'
-          ? value.tab
-          : 'details',
+      tab: isValidTab ? value.tab : 'details',
     };
   }
 

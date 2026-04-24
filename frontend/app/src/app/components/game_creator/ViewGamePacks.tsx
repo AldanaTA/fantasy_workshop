@@ -295,6 +295,7 @@ export function ViewGamePacks({
           <Separator />
           <GameRulesRenderer
             gameId={game.id}
+            campaignId={campaign?.id}
             selectedPackIds={previewPackIds}
             onSelectedPackIdsChange={setPreviewPackIds}
             mode="full"
@@ -319,14 +320,16 @@ export function ViewGamePacks({
             </p>
           </div>
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
-          <Button onClick={onBack}
-            
-            className="min-h-[44px] min-w-0 px-2 sm:px-4"
-          >
-            <CircleArrowLeft className="h-4 w-4 shrink-0" />
-            <span className="truncate sm:hidden">Dashboard</span>
-            <span className="hidden sm:inline">Back to Dashboard</span>
-          </Button>                                                                                                                   
+          {onBack ? (
+            <Button
+              onClick={onBack}
+              className="min-h-[44px] min-w-0 px-2 sm:px-4"
+            >
+              <CircleArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate sm:hidden">Dashboard</span>
+              <span className="hidden sm:inline">Back to Dashboard</span>
+            </Button>
+          ) : null}
           <Button
             onClick={openCreateDialog}
             className="min-h-[44px] min-w-0 px-2 sm:px-4"

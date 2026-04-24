@@ -3,15 +3,17 @@ import { CampaignChatPanel } from '../campaigns/CampaignChatPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { GameMasterCampaignAllowedPacksView } from './GameMasterCampaignAllowedPacksView';
 import { GameMasterCampaignFormView } from './GameMasterCampaignFormView';
+import { GameMasterCampaignGamePacksView } from './GameMasterCampaignGamePacksView';
 import { GameMasterCampaignNotesView } from './GameMasterCampaignNotesView';
+import { GameMasterCampaignRulesView } from './GameMasterCampaignRulesView';
 import { GameMasterCampaignValidationView } from './GameMasterCampaignValidationView';
 import { GameMasterViewFrame } from './GameMasterViewFrame';
 
 type Props = {
   campaign: Campaign;
   games: Game[];
-  activeTab: 'details' | 'packs' | 'validation' | 'notes' | 'timeline';
-  onTabChange: (tab: 'details' | 'packs' | 'validation' | 'notes' | 'timeline') => void;
+  activeTab: 'details' | 'packs' | 'game-packs' | 'rules' | 'validation' | 'notes' | 'timeline';
+  onTabChange: (tab: 'details' | 'packs' | 'game-packs' | 'rules' | 'validation' | 'notes' | 'timeline') => void;
   onBack: () => void;
   onSaved: (campaign: Campaign) => Promise<void> | void;
 };
@@ -38,6 +40,12 @@ export function GameMasterCampaignManageView({
             </TabsTrigger>
             <TabsTrigger value="packs" className="min-h-[44px] px-3">
               Allowed Packs
+            </TabsTrigger>
+            <TabsTrigger value="game-packs" className="min-h-[44px] px-3">
+              Make Packs
+            </TabsTrigger>
+            <TabsTrigger value="rules" className="min-h-[44px] px-3">
+              View Rules
             </TabsTrigger>
             <TabsTrigger value="validation" className="min-h-[44px] px-3">
               Validate
@@ -66,8 +74,19 @@ export function GameMasterCampaignManageView({
           <GameMasterCampaignAllowedPacksView campaign={campaign} embedded />
         </TabsContent>
 
+        <TabsContent value="game-packs">
+          <GameMasterCampaignGamePacksView
+            campaign={campaign}
+            game={games.find((game) => game.id === campaign.game_id) ?? null}
+          />
+        </TabsContent>
+
         <TabsContent value="validation">
           <GameMasterCampaignValidationView campaign={campaign} embedded />
+        </TabsContent>
+
+        <TabsContent value="rules">
+          <GameMasterCampaignRulesView campaign={campaign} embedded />
         </TabsContent>
 
         <TabsContent value="notes">

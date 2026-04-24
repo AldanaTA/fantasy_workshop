@@ -24,6 +24,8 @@ export type ViewGamesProps = {
 };
 
 const canEditGame = (game: LibraryGame) => game.role === 'owner' || game.role === 'editor';
+const canManagePackGame = (game: LibraryGame) =>
+  game.role === 'owner' || game.role === 'editor' || game.role === 'purchaser';
 const canDeleteGame = (game: LibraryGame) => game.role === 'owner';
 
 const labelForRole = (role?: string) => {
@@ -113,7 +115,7 @@ export function ViewGames({
                           Creator Tools
                         </Button>
                       ) : null}
-                      {showEditorActions && onManagePacks ? (
+                      {canManagePackGame(game) && onManagePacks ? (
                         <Button type="button" variant="outline" size="sm" onClick={() => onManagePacks(game)}>
                           <PackageOpen className="h-3.5 w-3.5" />
                           Packs

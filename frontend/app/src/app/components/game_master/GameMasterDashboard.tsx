@@ -14,7 +14,7 @@ import { getSavedGameMasterState, setSavedGameMasterState } from '../../api/appR
 type GameMasterMode =
   | { type: 'list' }
   | { type: 'create' }
-  | { type: 'manage'; campaign: Campaign; tab: 'details' | 'packs' | 'validation' | 'notes' | 'timeline' }
+  | { type: 'manage'; campaign: Campaign; tab: 'details' | 'packs' | 'game-packs' | 'rules' | 'validation' | 'notes' | 'timeline' }
   | { type: 'share'; campaign: Campaign };
 
 interface GameMasterDashboardProps {
