@@ -44,18 +44,18 @@ export function GameMasterCampaignManageView({
             <TabsTrigger value="game-packs" className="min-h-[44px] px-3">
               Make Packs
             </TabsTrigger>
-            <TabsTrigger value="rules" className="min-h-[44px] px-3">
-              View Rules
-            </TabsTrigger>
             <TabsTrigger value="validation" className="min-h-[44px] px-3">
               Validate
-            </TabsTrigger>
+            </TabsTrigger>     
             <TabsTrigger value="notes" className="min-h-[44px] px-3">
               Notes
-            </TabsTrigger>
-            <TabsTrigger value="timeline" className="min-h-[44px] px-3">
+            </TabsTrigger>  
+            <TabsTrigger value="chat" className="min-h-[44px] px-3">
               Chat
             </TabsTrigger>
+            <TabsTrigger value="rules" className="min-h-[44px] px-3">
+              View Rules
+            </TabsTrigger>  
           </TabsList>
         </div>
 
@@ -85,16 +85,16 @@ export function GameMasterCampaignManageView({
           <GameMasterCampaignValidationView campaign={campaign} embedded />
         </TabsContent>
 
-        <TabsContent value="rules">
-          <GameMasterCampaignRulesView campaign={campaign} embedded />
-        </TabsContent>
-
         <TabsContent value="notes">
           <GameMasterCampaignNotesView campaign={campaign} embedded />
         </TabsContent>
 
-        <TabsContent value="timeline">
+        <TabsContent value="chat">
           <CampaignChatPanel campaign={campaign} accessRole="co_gm" />
+        </TabsContent>
+        
+        <TabsContent value="rules">
+          <GameMasterCampaignRulesView campaign={campaign} embedded />
         </TabsContent>
       </Tabs>
     </GameMasterViewFrame>

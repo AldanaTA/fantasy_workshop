@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArchiveRestore, History, PencilLine, Plus, Trash2 } from 'lucide-react';
+import { ArchiveRestore, PencilLine, Plus, Trash2 } from 'lucide-react';
 
 import { campaignsApi } from '../../api/campaignsApi';
-import type { Campaign, CampaignNote, CampaignNoteRevision } from '../../api/models';
+import type { Campaign, CampaignNote } from '../../api/models';
 import type { CampaignNoteDocument } from '../../types/campaignNotes';
 import { CampaignNoteEditor } from '../content/CampaignNoteEditor';
 import { CampaignNoteRenderer } from '../content/CampaignNoteRenderer';
@@ -55,7 +55,6 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
   const { toastPromise } = useToast();
   const [notes, setNotes] = useState<CampaignNote[]>([]);
   const [activeNote, setActiveNote] = useState<CampaignNote | null>(null);
-  const [revisions, setRevisions] = useState<CampaignNoteRevision[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -90,18 +89,9 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
     void loadNotes();
   }, [campaign.id, showArchived]);
 
-  const loadRevisions = async (note: CampaignNote) => {
-    try {
-      setRevisions(await campaignsApi.listNoteRevisions(campaign.id, note.id));
-    } catch {
-      setRevisions([]);
-    }
-  };
-
   const openCreateDialog = () => {
     setEditorMode('create');
     setActiveNote(null);
-    setRevisions([]);
     setForm(emptyForm);
     setError(null);
     setIsEditorOpen(true);
@@ -117,7 +107,6 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
     });
     setError(null);
     setIsEditorOpen(true);
-    await loadRevisions(note);
   };
 
   const openViewDialog = async (note: CampaignNote) => {
@@ -130,7 +119,6 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
     });
     setError(null);
     setIsEditorOpen(true);
-    await loadRevisions(note);
   };
 
   const closeEditor = (open: boolean) => {
@@ -139,7 +127,6 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
       setError(null);
       setForm(emptyForm);
       setActiveNote(null);
-      setRevisions([]);
     }
   };
 
@@ -325,103 +312,94 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
       </div>
 
       <Dialog open={isEditorOpen} onOpenChange={closeEditor}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:max-w-2xl sm:p-6">
-          <DialogHeader>
+        <DialogContent className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col overflow-hidden p-3 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:max-w-2xl sm:p-6">
+          <DialogHeader className="shrink-0 pr-8">
             <DialogTitle>
               {editorMode === 'create' ? 'Create Note' : editorMode === 'view' ? 'View Note' : 'Edit Note'}
             </DialogTitle>
             <DialogDescription>
               Format campaign notes with a reusable lightweight editor that can be shared with future player-facing note workflows.
             </DialogDescription>
+            {activeNote ? (
+              <p className="text-xs text-muted-foreground">
+                Last updated {formatDateTime(activeNote.updated_at)}
+              </p>
+            ) : null}
           </DialogHeader>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="grid gap-2">
-              <Label htmlFor="gm-note-title">Title</Label>
-              <Input
-                id="gm-note-title"
-                value={form.title}
-                onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                placeholder="Frontier shrine clues"
-                disabled={editorMode === 'view' || Boolean(activeNote?.archived_at)}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="gm-note-visibility">Visibility</Label>
-              <Select
-                value={form.visibility}
-                onValueChange={(value: 'gm' | 'shared') => setForm((prev) => ({ ...prev, visibility: value }))}
-                disabled={editorMode === 'view' || Boolean(activeNote?.archived_at)}
-              >
-                <SelectTrigger id="gm-note-visibility">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gm">GM Only</SelectItem>
-                  <SelectItem value="shared">Shared</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="gm-note-body">Body</Label>
-              {editorMode === 'view' || activeNote?.archived_at ? (
-                <div className="rounded-2xl border border-input bg-input-background px-4 py-4">
-                  <CampaignNoteRenderer
-                    body={form.body}
-                    emptyState={<p className="text-sm text-muted-foreground">This note is empty.</p>}
-                  />
-                </div>
-              ) : (
-                <CampaignNoteEditor
-                  id="gm-note-body"
-                  value={form.body}
-                  onChange={(body) => setForm((prev) => ({ ...prev, body }))}
-                  helperText="Notes now use a structured document model that is shared by editing and read-only rendering."
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="grid gap-2">
+                <Label htmlFor="gm-note-title">Title</Label>
+                <Input
+                  id="gm-note-title"
+                  value={form.title}
+                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                  placeholder="Frontier shrine clues"
+                  disabled={editorMode === 'view' || Boolean(activeNote?.archived_at)}
                 />
-              )}
-            </div>
-
-            {error ? (
-              <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
-                {error}
               </div>
-            ) : null}
 
-            <DialogFooter>
-              {activeNote && editorMode !== 'view' && !activeNote.archived_at ? (
-                <Button type="button" variant="destructive" className="min-h-[44px] sm:w-auto" onClick={() => void handleArchive()}>
-                  <Trash2 className="h-4 w-4" />
-                  Archive
-                </Button>
-              ) : null}
-              <Button type="button" variant="outline" className="min-h-[44px] sm:w-auto" onClick={() => closeEditor(false)}>
-                {editorMode === 'view' ? 'Close' : 'Cancel'}
-              </Button>
-              {editorMode !== 'view' && !activeNote?.archived_at ? (
-                <Button type="submit" className="min-h-[44px] sm:w-auto" disabled={isSaving}>
-                  {activeNote ? 'Save Note' : 'Create Note'}
-                </Button>
-              ) : null}
-            </DialogFooter>
-          </form>
-
-          {activeNote && revisions.length > 0 ? (
-            <div className="rounded-2xl border border-border bg-background p-4">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                <History className="h-4 w-4" />
-                Revision History
+              <div className="grid gap-2">
+                <Label htmlFor="gm-note-visibility">Visibility</Label>
+                <Select
+                  value={form.visibility}
+                  onValueChange={(value: 'gm' | 'shared') => setForm((prev) => ({ ...prev, visibility: value }))}
+                  disabled={editorMode === 'view' || Boolean(activeNote?.archived_at)}
+                >
+                  <SelectTrigger id="gm-note-visibility">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gm">GM Only</SelectItem>
+                    <SelectItem value="shared">Shared</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2">
-                {revisions.map((revision) => (
-                  <div key={`${revision.note_id}-${revision.version_num}`} className="rounded-xl border border-border px-3 py-2 text-sm text-muted-foreground">
-                    v{revision.version_num} · {formatDateTime(revision.created_at)}
+
+              <div className="grid gap-2">
+                <Label htmlFor="gm-note-body">Body</Label>
+                {editorMode === 'view' || activeNote?.archived_at ? (
+                  <div className="max-h-[50dvh] overflow-y-auto rounded-2xl border border-input bg-input-background px-4 py-4 sm:max-h-none">
+                    <CampaignNoteRenderer
+                      body={form.body}
+                      emptyState={<p className="text-sm text-muted-foreground">This note is empty.</p>}
+                    />
                   </div>
-                ))}
+                ) : (
+                  <CampaignNoteEditor
+                    id="gm-note-body"
+                    value={form.body}
+                    onChange={(body) => setForm((prev) => ({ ...prev, body }))}
+                    helperText="Notes now use a structured document model that is shared by editing and read-only rendering."
+                  />
+                )}
               </div>
-            </div>
-          ) : null}
+
+              {error ? (
+                <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
+                  {error}
+                </div>
+              ) : null}
+
+              <DialogFooter className="sticky bottom-0 bg-background pt-2">
+                {activeNote && editorMode !== 'view' && !activeNote.archived_at ? (
+                  <Button type="button" variant="destructive" className="min-h-[44px] sm:w-auto" onClick={() => void handleArchive()}>
+                    <Trash2 className="h-4 w-4" />
+                    Archive
+                  </Button>
+                ) : null}
+                <Button type="button" variant="outline" className="min-h-[44px] sm:w-auto" onClick={() => closeEditor(false)}>
+                  {editorMode === 'view' ? 'Close' : 'Cancel'}
+                </Button>
+                {editorMode !== 'view' && !activeNote?.archived_at ? (
+                  <Button type="submit" className="min-h-[44px] sm:w-auto" disabled={isSaving}>
+                    {activeNote ? 'Save Note' : 'Create Note'}
+                  </Button>
+                ) : null}
+              </DialogFooter>
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
     </>
