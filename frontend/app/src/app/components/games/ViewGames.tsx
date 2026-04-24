@@ -3,7 +3,7 @@ import { BookOpen, Edit3, Eye, Link2, PackageOpen, Settings2, Trash2 } from 'luc
 import type { LibraryGame } from '../../api/models';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardDescription, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
 
 export type ViewGamesProps = {
@@ -55,7 +55,6 @@ export function ViewGames({
       </div>
 
       <Separator />
-
       {isLoading ? (
         <div className="rounded-2xl border border-dashed border-border bg-background px-4 py-12 text-center text-sm text-muted-foreground">
           Loading games...
@@ -77,110 +76,68 @@ export function ViewGames({
 
             return (
               <Card key={game.id} className="border-border">
-                <CardContent>
-                   <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 pt-2">
                       <div className="flex items-start justify-between gap-2">
-                      <CardTitle className=" min-w-0 flex-1 break-words text-base font-semibold leading-6">
-                        {game.game_name}
+                        <CardTitle className="min-w-0 flex-1 break-words text-base font-semibold leading-6">
+                          {game.game_name}
                         </CardTitle>
-                      
-                        <div className='flex shrink-0 items-center gap-2'>
-                      <Badge variant="outline" className="max-w-full whitespace-normal break-words">
-                        {labelForRole(game.role)}
-                      </Badge>
-                      <Badge variant="secondary" className="max-w-full whitespace-normal break-words">
-                        {game.visibility}
-                      </Badge>
-                      </div>
+                        <Badge variant="outline" className="max-w-full whitespace-normal break-words">
+                          {labelForRole(game.role)}
+                        </Badge>
+                        <Badge variant="secondary" className="max-w-full whitespace-normal break-words">
+                          {game.visibility}
+                        </Badge>
                       </div>
                       <CardDescription className="mt-1 break-words leading-6">
                         {game.game_summary || 'No summary available.'}
                       </CardDescription>
                     </div>
-                    {onOpen ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => onOpen(game)}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        View Rules
-                      </Button>
-                    ) : null}
-                    {onPreview ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => onPreview(game)}
-                      >
-                        <BookOpen className="h-3.5 w-3.5" />
-                        Preview
-                      </Button>
-                    ) : null}
-                    {showEditorActions && onManageGame ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => onManageGame(game)}
-                      >
-                        <Settings2 className="h-3.5 w-3.5" />
-                        Creator Tools
-                      </Button>
-                    ) : null}
-                    {showEditorActions && onManagePacks ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => onManagePacks(game)}
-                      >
-                        <PackageOpen className="h-3.5 w-3.5" />
-                        Packs
-                      </Button>
-                    ) : null}
-                    {showEditorActions && onShare ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => onShare(game)}
-                      >
-                        <Link2 className="h-3.5 w-3.5" />
-                        Share
-                      </Button>
-                    ) : null}
-                    {showEditorActions && onEdit ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => onEdit(game)}
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                        Edit
-                      </Button>
-                    ) : null}
-                    {showDelete && onDelete ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="min-h-[44px] min-w-[44px]"
-                        onClick={() => onDelete(game)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Delete
-                      </Button>
-                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {onOpen ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onOpen(game)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          View Rules
+                        </Button>
+                      ) : null}
+                      {onPreview ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onPreview(game)}>
+                          <BookOpen className="h-3.5 w-3.5" />
+                          Preview
+                        </Button>
+                      ) : null}
+                      {showEditorActions && onManageGame ? (
+                        <Button type="button" variant="secondary" size="sm" onClick={() => onManageGame(game)}>
+                          <Settings2 className="h-3.5 w-3.5" />
+                          Creator Tools
+                        </Button>
+                      ) : null}
+                      {showEditorActions && onManagePacks ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onManagePacks(game)}>
+                          <PackageOpen className="h-3.5 w-3.5" />
+                          Packs
+                        </Button>
+                      ) : null}
+                      {showEditorActions && onShare ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => onShare(game)}>
+                          <Link2 className="h-3.5 w-3.5" />
+                          Share
+                        </Button>
+                      ) : null}
+                      {showEditorActions && onEdit ? (
+                        <Button type="button" variant="secondary" size="sm" onClick={() => onEdit(game)}>
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                      ) : null}
+                      {showDelete && onDelete ? (
+                        <Button type="button" variant="destructive" size="sm" onClick={() => onDelete(game)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

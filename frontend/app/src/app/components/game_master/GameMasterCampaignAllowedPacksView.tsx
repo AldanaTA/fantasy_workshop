@@ -103,7 +103,7 @@ export function GameMasterCampaignAllowedPacksView({ campaign, onBack, embedded 
         return (
           <Card key={pack.id} className="border-border">
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className='pt-2'>
+              <div className="pt-2">
                 <CardTitle className="text-base">{pack.pack_name}</CardTitle>
                 <CardDescription>
                   {pack.description || 'No description available.'}

@@ -148,8 +148,8 @@ export function GameMasterCampaignShareView({ campaign, onBack }: Props) {
       description="Manage direct campaign access and prepare invite links from one share surface."
       onBack={onBack}
     >
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <form className="grid gap-4 rounded-2xl border border-border bg-background p-4" onSubmit={handleSubmit}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <form className="grid gap-4 rounded-2xl border border-border bg-background p-4 shadow-sm" onSubmit={handleSubmit}>
           <div>
             <h3 className="text-base font-semibold">Direct Access</h3>
             <p className="text-sm text-muted-foreground">
@@ -193,7 +193,7 @@ export function GameMasterCampaignShareView({ campaign, onBack }: Props) {
           </div>
         </form>
 
-        <div className="grid gap-4 rounded-2xl border border-border bg-background p-4">
+        <div className="grid gap-4 rounded-2xl border border-border bg-background p-4 shadow-sm">
           <div>
             <h3 className="text-base font-semibold">Invite Link</h3>
             <p className="text-sm text-muted-foreground">
@@ -266,13 +266,13 @@ export function GameMasterCampaignShareView({ campaign, onBack }: Props) {
           </div>
         ) : (
           roles.map((entry) => (
-            <Card key={entry.user_id} className="border-border">
-              <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+            <Card key={entry.user_id} className="border-border/80 bg-gradient-to-br from-card via-card to-muted/20 shadow-sm">
+              <CardContent className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div className="min-w-0">
                   <CardTitle className="text-base">{entry.role}</CardTitle>
-                  <CardDescription>{entry.user_id}</CardDescription>
+                  <CardDescription className="break-all">{entry.user_id}</CardDescription>
                 </div>
-                <Button type="button" variant="destructive" size="sm" onClick={() => void handleDelete(entry)}>
+                <Button type="button" variant="destructive" className="min-h-[44px] sm:w-auto" onClick={() => void handleDelete(entry)}>
                   <X className="h-3.5 w-3.5" />
                   Remove
                 </Button>

@@ -122,8 +122,9 @@ export function GameMasterCampaignFormView({
   };
 
   const content = (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <div className="grid gap-2">
+    <form className="space-y-5" onSubmit={handleSubmit}>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-2">
         <Label htmlFor="gm-campaign-game">Game</Label>
         {hasGames ? (
           <Select value={form.game_id} onValueChange={(value) => setForm((prev) => ({ ...prev, game_id: value }))}>
@@ -141,8 +142,8 @@ export function GameMasterCampaignFormView({
         ) : (
           <Input id="gm-campaign-game" value={selectedGameName} readOnly disabled />
         )}
-      </div>
-      <div className="grid gap-2">
+        </div>
+        <div className="grid gap-2">
         <Label htmlFor="gm-campaign-name">Campaign Name</Label>
         <Input
           id="gm-campaign-name"
@@ -151,6 +152,7 @@ export function GameMasterCampaignFormView({
           placeholder="Secrets in the Wandering Trees"
           required
         />
+        </div>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="gm-campaign-description">Summary</Label>

@@ -62,6 +62,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<NoteFormState>(emptyForm);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<'create' | 'edit' | 'view'>('create');
 
   const loadNotes = async () => {
     setIsLoading(true);
@@ -98,6 +99,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
   };
 
   const openCreateDialog = () => {
+    setEditorMode('create');
     setActiveNote(null);
     setRevisions([]);
     setForm(emptyForm);
@@ -106,6 +108,20 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
   };
 
   const openEditDialog = async (note: CampaignNote) => {
+    setEditorMode('edit');
+    setActiveNote(note);
+    setForm({
+      title: note.title,
+      body: normalizeCampaignNoteBody(note.body),
+      visibility: note.visibility === 'shared' ? 'shared' : 'gm',
+    });
+    setError(null);
+    setIsEditorOpen(true);
+    await loadRevisions(note);
+  };
+
+  const openViewDialog = async (note: CampaignNote) => {
+    setEditorMode('view');
     setActiveNote(note);
     setForm({
       title: note.title,
@@ -174,21 +190,46 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
     }
   };
 
-  const handleArchive = async () => {
-    if (!activeNote) return;
+  const archiveNote = async (note: CampaignNote, options?: { closeEditor?: boolean }) => {
     try {
       await toastPromise(
-        campaignsApi.deleteNote(campaign.id, activeNote.id),
+        campaignsApi.deleteNote(campaign.id, note.id),
         {
           loading: 'Archiving note...',
           success: 'Note archived.',
           error: (e) => (e as Error)?.message || 'Failed to archive note.',
         },
       );
-      closeEditor(false);
+      if (options?.closeEditor) {
+        closeEditor(false);
+      }
       await loadNotes();
     } catch (err) {
       setError((err as Error)?.message || 'Unable to archive note.');
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!activeNote) return;
+    await archiveNote(activeNote, { closeEditor: true });
+  };
+
+  const handleDelete = async (note: CampaignNote) => {
+    try {
+      await toastPromise(
+        campaignsApi.deleteNote(campaign.id, note.id),
+        {
+          loading: 'Deleting note...',
+          success: 'Note deleted.',
+          error: (e) => (e as Error)?.message || 'Failed to delete note.',
+        },
+      );
+      if (activeNote?.id === note.id) {
+        closeEditor(false);
+      }
+      await loadNotes();
+    } catch (err) {
+      setError((err as Error)?.message || 'Unable to delete note.');
     }
   };
 
@@ -210,17 +251,23 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
 
   const content = (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-        <Button type="button" variant="outline" onClick={openCreateDialog} size="sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" onClick={openCreateDialog} size="sm" className="min-h-[44px] sm:w-auto">
           <Plus className="h-3.5 w-3.5" />
           Make Note
         </Button>
-        <Button type="button" variant={showArchived ? 'secondary' : 'outline'} size="sm" onClick={() => setShowArchived((prev) => !prev)}>
+        <Button
+          type="button"
+          variant={showArchived ? 'secondary' : 'outline'}
+          size="sm"
+          className="min-h-[44px] sm:w-auto"
+          onClick={() => setShowArchived((prev) => !prev)}
+        >
           {showArchived ? 'Hide Archived' : 'Show Archived'}
         </Button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 pt-5 sm:pt-6">
         {isLoading ? (
           <div className="rounded-2xl border border-dashed border-border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
             Loading notes...
@@ -233,29 +280,43 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
           notes.map((note) => (
             <Card key={note.id} className="border-border">
               <CardContent className="space-y-3">
-                <div className='pt-2'>
-                  <CardTitle className="text-base">{note.title}</CardTitle>
-                  <CardDescription>
-                    {note.visibility} note · v{note.version_num}
-                    {note.archived_at ? ' · archived' : ''}
-                  </CardDescription>
-                </div>
-                {getCampaignNotePlainText(note.body) ? (
-                  <p className="line-clamp-3 text-sm text-muted-foreground">
-                    {getCampaignNotePlainText(note.body)}
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => void openEditDialog(note)}>
-                    <PencilLine className="h-3.5 w-3.5" />
-                    {note.archived_at ? 'View' : 'Edit'}
-                  </Button>
-                  {note.archived_at ? (
-                    <Button type="button" variant="outline" size="sm" onClick={() => void handleRestore(note)}>
-                      <ArchiveRestore className="h-3.5 w-3.5" />
-                      Restore
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <CardTitle className="break-words text-base">{note.title}</CardTitle>
+                    <CardDescription>
+                      {note.visibility} note · v{note.version_num}
+                      {note.archived_at ? ' · archived' : ''}
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => void openViewDialog(note)}>
+                      <PencilLine className="h-3.5 w-3.5" />
+                      View
                     </Button>
-                  ) : null}
+                    {note.archived_at ? (
+                      <>
+                        <Button type="button" variant="outline" size="sm" onClick={() => void handleRestore(note)}>
+                          <ArchiveRestore className="h-3.5 w-3.5" />
+                          Restore
+                        </Button>
+                        <Button type="button" variant="destructive" size="sm" onClick={() => void handleDelete(note)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button type="button" variant="secondary" size="sm" onClick={() => void openEditDialog(note)}>
+                          <PencilLine className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button type="button" variant="destructive" size="sm" onClick={() => void archiveNote(note)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Archive
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -266,7 +327,9 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
       <Dialog open={isEditorOpen} onOpenChange={closeEditor}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:max-w-2xl sm:p-6">
           <DialogHeader>
-            <DialogTitle>{activeNote ? (activeNote.archived_at ? 'View Note' : 'Edit Note') : 'Create Note'}</DialogTitle>
+            <DialogTitle>
+              {editorMode === 'create' ? 'Create Note' : editorMode === 'view' ? 'View Note' : 'Edit Note'}
+            </DialogTitle>
             <DialogDescription>
               Format campaign notes with a reusable lightweight editor that can be shared with future player-facing note workflows.
             </DialogDescription>
@@ -280,7 +343,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
                 value={form.title}
                 onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                 placeholder="Frontier shrine clues"
-                disabled={Boolean(activeNote?.archived_at)}
+                disabled={editorMode === 'view' || Boolean(activeNote?.archived_at)}
               />
             </div>
 
@@ -289,7 +352,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
               <Select
                 value={form.visibility}
                 onValueChange={(value: 'gm' | 'shared') => setForm((prev) => ({ ...prev, visibility: value }))}
-                disabled={Boolean(activeNote?.archived_at)}
+                disabled={editorMode === 'view' || Boolean(activeNote?.archived_at)}
               >
                 <SelectTrigger id="gm-note-visibility">
                   <SelectValue />
@@ -303,7 +366,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
 
             <div className="grid gap-2">
               <Label htmlFor="gm-note-body">Body</Label>
-              {activeNote?.archived_at ? (
+              {editorMode === 'view' || activeNote?.archived_at ? (
                 <div className="rounded-2xl border border-input bg-input-background px-4 py-4">
                   <CampaignNoteRenderer
                     body={form.body}
@@ -327,16 +390,16 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
             ) : null}
 
             <DialogFooter>
-              {activeNote && !activeNote.archived_at ? (
+              {activeNote && editorMode !== 'view' && !activeNote.archived_at ? (
                 <Button type="button" variant="destructive" className="min-h-[44px] sm:w-auto" onClick={() => void handleArchive()}>
                   <Trash2 className="h-4 w-4" />
                   Archive
                 </Button>
               ) : null}
               <Button type="button" variant="outline" className="min-h-[44px] sm:w-auto" onClick={() => closeEditor(false)}>
-                Cancel
+                {editorMode === 'view' ? 'Close' : 'Cancel'}
               </Button>
-              {!activeNote?.archived_at ? (
+              {editorMode !== 'view' && !activeNote?.archived_at ? (
                 <Button type="submit" className="min-h-[44px] sm:w-auto" disabled={isSaving}>
                   {activeNote ? 'Save Note' : 'Create Note'}
                 </Button>

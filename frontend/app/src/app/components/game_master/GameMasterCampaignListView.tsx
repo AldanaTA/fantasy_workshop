@@ -39,7 +39,6 @@ export function GameMasterCampaignListView({
         </div>
 
         <Separator />
-
         {isLoading ? (
           <div className="rounded-2xl border border-dashed border-border bg-background px-4 py-12 text-center text-sm text-muted-foreground">
             Loading campaigns...
@@ -55,42 +54,27 @@ export function GameMasterCampaignListView({
         ) : (
           <div className="space-y-4">
             {campaigns.map((campaign) => (
-              <Card key={campaign.id} className={campaign.id === selectedCampaignId ? 'border-border' : 'border-border'}>
+              <Card key={campaign.id} className="border-border">
                 <CardContent className="space-y-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 pt-2">
-                      <CardTitle className="text-base font-semibold">{campaign.name}</CardTitle>
+                      <CardTitle className="break-words text-base font-semibold">{campaign.name}</CardTitle>
                       <CardDescription className="mt-1">
                         {campaign.description || 'No campaign summary available.'}
                       </CardDescription>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                       
-                        onClick={() => onAction('manage', campaign)}
-                      >
-                        <Edit3 className="h-3.5 w-3.5 shrink-0 sm:mr-2" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => onAction('manage', campaign)}>
+                        <Edit3 className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">Manage</span>
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                       
-                        onClick={() => onAction('share', campaign)}
-                      >
-                        <Link2 className="h-3.5 w-3.5 shrink-0 sm:mr-2" />
+                      <Button variant="outline" size="sm" onClick={() => onAction('share', campaign)}>
+                        <Link2 className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">Share</span>
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                    
-                        onClick={() => onAction('delete', campaign)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 shrink-0 sm:mr-2" />
-                        <span className="truncate">Del</span>
+                      <Button variant="destructive" size="sm" onClick={() => onAction('delete', campaign)}>
+                        <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">Delete</span>
                       </Button>
                     </div>
                   </div>
