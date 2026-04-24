@@ -22,14 +22,29 @@ type ApiRequestOptions = {
 };
 
 const contentCacheKeys = {
+  item: (contentId: string) => `content:item:${contentId}`,
+  byPack: (packId: string, limit: number, offset: number) => `content:pack:${packId}:l=${limit}:o=${offset}`,
   byCategory: (categoryId: string, limit: number, offset: number) => `content:category:${categoryId}:l=${limit}:o=${offset}`,
   byCategoryActive: (categoryId: string, limit: number, offset: number, includeMissing: boolean) =>
     `content:category-active:${categoryId}:l=${limit}:o=${offset}:missing=${includeMissing ? 1 : 0}`,
+  versions: (contentId: string) => `content:versions:${contentId}`,
+  version: (contentId: string, versionNum: number) => `content:versions:${contentId}:${versionNum}`,
+  active: (contentId: string) => `content:active:${contentId}`,
 };
 
 export function invalidateContentCategoryCaches(categoryId: string) {
   invalidateCacheByPrefix(`content:category:${categoryId}:`);
   invalidateCacheByPrefix(`content:category-active:${categoryId}:`);
+}
+
+function invalidateContentPackCaches(packId: string) {
+  invalidateCacheByPrefix(`content:pack:${packId}:`);
+}
+
+function invalidateContentItemCaches(contentId: string) {
+  invalidateCacheByPrefix(contentCacheKeys.item(contentId));
+  invalidateCacheByPrefix(`content:versions:${contentId}`);
+  invalidateCacheByPrefix(contentCacheKeys.active(contentId));
 }
 
 const authHeaders = (token?: string) => {
@@ -65,6 +80,7 @@ export const contentApi = {
   create: (payload: ContentCreate, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
     return request<Content>('', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((content) => {
+      invalidateContentPackCaches(payload.pack_id);
       invalidateContentCategoryCaches(payload.category_id);
       return content;
     });
@@ -72,7 +88,11 @@ export const contentApi = {
 
   get: (contentId: string, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<Content>(`/${contentId}`, { method: 'GET', headers: authHeaders(token), signal });
+    return fetchWithCache(
+      contentCacheKeys.item(contentId),
+      () => request<Content>(`/${contentId}`, { method: 'GET', headers: authHeaders(token) }),
+      { ttlMs: CONTENT_CACHE_TTL_MS, signal },
+    );
   },
 
   list: (limit = 50, offset = 0, options?: string | ApiRequestOptions) => {
@@ -82,7 +102,11 @@ export const contentApi = {
 
   listByPack: (packId: string, limit = 50, offset = 0, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<Content[]>(`/by-pack/${packId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token), signal });
+    return fetchWithCache(
+      contentCacheKeys.byPack(packId, limit, offset),
+      () => request<Content[]>(`/by-pack/${packId}?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
+      { ttlMs: CONTENT_CACHE_TTL_MS, signal },
+    );
   },
 
   listByCategory: (categoryId: string, limit = 50, offset = 0, options?: string | ApiRequestOptions) => {
@@ -123,39 +147,63 @@ export const contentApi = {
 
   patch: (contentId: string, patch: Partial<Content>, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<Content>(`/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token), signal });
+    return request<Content>(`/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token), signal }).then((content) => {
+      invalidateContentPackCaches(content.pack_id);
+      invalidateContentItemCaches(contentId);
+      return content;
+    });
   },
 
   delete: (contentId: string, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<void>(`/${contentId}`, { method: 'DELETE', headers: authHeaders(token), signal });
+    return request<void>(`/${contentId}`, { method: 'DELETE', headers: authHeaders(token), signal }).then(() => {
+      invalidateContentItemCaches(contentId);
+    });
   },
 
   // Versions
   createVersion: (contentId: string, payload: ContentVersionCreate, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
     validateContentVersionPayload(payload);
-    return request<ContentVersion>(`/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal });
+    return request<ContentVersion>(`/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((version) => {
+      invalidateContentItemCaches(contentId);
+      return version;
+    });
   },
 
   listVersions: (contentId: string, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<ContentVersion[]>(`/${contentId}/versions`, { method: 'GET', headers: authHeaders(token), signal });
+    return fetchWithCache(
+      contentCacheKeys.versions(contentId),
+      () => request<ContentVersion[]>(`/${contentId}/versions`, { method: 'GET', headers: authHeaders(token) }),
+      { ttlMs: CONTENT_CACHE_TTL_MS, signal },
+    );
   },
 
   getVersion: (contentId: string, versionNum: number, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<ContentVersion>(`/${contentId}/versions/${versionNum}`, { method: 'GET', headers: authHeaders(token), signal });
+    return fetchWithCache(
+      contentCacheKeys.version(contentId, versionNum),
+      () => request<ContentVersion>(`/${contentId}/versions/${versionNum}`, { method: 'GET', headers: authHeaders(token) }),
+      { ttlMs: CONTENT_CACHE_TTL_MS, signal },
+    );
   },
 
   // Active
   upsertActive: (contentId: string, payload: Partial<ContentActiveVersion>, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<ContentActiveVersion>(`/${contentId}/active`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token), signal });
+    return request<ContentActiveVersion>(`/${contentId}/active`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((activeVersion) => {
+      invalidateContentItemCaches(contentId);
+      return activeVersion;
+    });
   },
 
   getActive: (contentId: string, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    return request<ContentVersion>(`/${contentId}/active`, { method: 'GET', headers: authHeaders(token), signal });
+    return fetchWithCache(
+      contentCacheKeys.active(contentId),
+      () => request<ContentVersion>(`/${contentId}/active`, { method: 'GET', headers: authHeaders(token) }),
+      { ttlMs: CONTENT_CACHE_TTL_MS, signal },
+    );
   },
 };
