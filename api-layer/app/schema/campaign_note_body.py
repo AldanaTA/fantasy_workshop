@@ -12,6 +12,7 @@ def default_campaign_note_body() -> dict[str, Any]:
         "schema_version": CAMPAIGN_NOTE_DOC_SCHEMA_VERSION,
         "type": "doc",
         "content": [],
+        "linked_rules": [],
     }
 
 
@@ -33,7 +34,33 @@ def validate_campaign_note_body_shape(body: dict[str, Any]) -> dict[str, Any]:
     for index, node in enumerate(content):
         validate_block_node(node, f"body.content[{index}]")
 
+    linked_rules = body.get("linked_rules", [])
+    if not isinstance(linked_rules, list):
+        raise ValueError("body.linked_rules must be an array")
+
+    for index, link in enumerate(linked_rules):
+        validate_linked_rule(link, f"body.linked_rules[{index}]")
+
     return body
+
+
+def validate_linked_rule(link: Any, path: str) -> None:
+    if not isinstance(link, dict):
+        raise ValueError(f"{path} must be an object")
+
+    if not isinstance(link.get("content_id"), str) or not link.get("content_id"):
+        raise ValueError(f"{path}.content_id must be a non-empty string")
+
+    if "label" in link and link.get("label") is not None and not isinstance(link.get("label"), str):
+        raise ValueError(f"{path}.label must be a string or null")
+
+    if link.get("link_mode") not in {"live", "snapshot"}:
+        raise ValueError(f"{path}.link_mode must be 'live' or 'snapshot'")
+
+    if "pinned_version_num" in link and link.get("pinned_version_num") is not None:
+        pinned_version_num = link.get("pinned_version_num")
+        if not isinstance(pinned_version_num, int) or pinned_version_num < 1:
+            raise ValueError(f"{path}.pinned_version_num must be an integer greater than 0 or null")
 
 
 def validate_block_node(node: Any, path: str) -> None:

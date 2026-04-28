@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { CircleArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -586,6 +587,32 @@ const buildPreviewFields = (form: ContentFormState): { fields?: ContentFields; e
   }
 };
 
+function EditorSection({
+  value,
+  title,
+  description,
+  children,
+}: {
+  value: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <AccordionItem value={value} className="overflow-hidden rounded-2xl border border-border bg-background px-4 last:border-b sm:px-5">
+      <AccordionTrigger className="py-4 text-left hover:no-underline">
+        <div className="space-y-1">
+          <h3 className="font-semibold">{title}</h3>
+          <p className="text-sm font-normal text-muted-foreground">{description}</p>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="pb-5">
+        {children}
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
 export function ContentMaker({ pack, category, content, onCreated, onCancel }: Props) {
   const [form, setForm] = useState<ContentFormState>(() => emptyContentForm());
   const [error, setError] = useState<string | null>(null);
@@ -594,6 +621,9 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
   const isEditing = Boolean(content);
   const isSheetTemplate = form.content_type === 'character_sheet_template';
   const preview = buildPreviewFields(form);
+  const defaultOpenSections = isSheetTemplate
+    ? ['identity', 'sheet-sections', 'notes', 'preview']
+    : ['identity', 'system-targeting', 'traits', 'requirements', 'mechanics', 'scaling', 'notes', 'preview'];
 
   useEffect(() => {
     let isCancelled = false;
@@ -728,7 +758,7 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
               Define the rules document for {pack.pack_name}.
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={onCancel} className="min-h-[44px] sm:w-auto">
+          <Button type="button" variant="outline" onClick={onCancel} className="min-h-[44px] w-full sm:w-auto">
             <CircleArrowLeft className="h-4 w-4 shrink-0" />
             Back to Categories
           </Button>
@@ -738,82 +768,88 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
         {isLoadingVersion ? (
           <p className="text-sm text-muted-foreground">Loading content...</p>
         ) : (
-        <form className="space-y-8" onSubmit={handleSubmit}>
-          <section className="grid gap-4">
-            <div>
-              <h3 className="font-semibold">Identity</h3>
-              <p className="text-sm text-muted-foreground">Name the content and choose the broad rules category.</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="content_name">Name</Label>
-                <Input
-                  id="content_name"
-                  value={form.name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Frostbite Lance"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="content_type">Content Type</Label>
-                <Select
-                  value={form.content_type}
-                  onValueChange={(value) => setForm((prev) => ({ ...prev, content_type: value as ContentType }))}
-                >
-                  <SelectTrigger id="content_type">
-                    <SelectValue placeholder="Choose a content type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contentTypeOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="content_subtitle">Subtitle</Label>
-                <Input
-                  id="content_subtitle"
-                  value={form.subtitle}
-                  onChange={(event) => setForm((prev) => ({ ...prev, subtitle: event.target.value }))}
-                  placeholder="A shard of killing winter"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="content_tags">Tags</Label>
-                <Input
-                  id="content_tags"
-                  value={form.tags}
-                  onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
-                  placeholder="cold, ice, attack"
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="content_summary">Summary</Label>
-              <Textarea
-                id="content_summary"
-                value={form.summary}
-                onChange={(event) => setForm((prev) => ({ ...prev, summary: event.target.value }))}
-                placeholder="Short list text for this content."
-              />
-            </div>
-          </section>
-
-          <Separator />
-
-          {isSheetTemplate ? (
-            <>
-              <section className="grid gap-4">
-                <div>
-                  <h3 className="font-semibold">Sheet Sections</h3>
-                  <p className="text-sm text-muted-foreground">Define reusable sections and fields for character sheets as JSON.</p>
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <Accordion key={form.content_type} type="multiple" defaultValue={defaultOpenSections} className="space-y-4">
+            <EditorSection
+              value="identity"
+              title="Identity"
+              description="Name the content and choose the broad rules category."
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="content_name">Display Title</Label>
+                    <Input
+                      id="content_name"
+                      value={form.name}
+                      onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                      placeholder="Frostbite Lance"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Player-facing title shown in lists, previews, and rendered rules.
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="content_type">Content Type</Label>
+                    <Select
+                      value={form.content_type}
+                      onValueChange={(value) => setForm((prev) => ({ ...prev, content_type: value as ContentType }))}
+                    >
+                      <SelectTrigger id="content_type">
+                        <SelectValue placeholder="Choose a content type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contentTypeOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="content_subtitle">Display Subtitle</Label>
+                    <Input
+                      id="content_subtitle"
+                      value={form.subtitle}
+                      onChange={(event) => setForm((prev) => ({ ...prev, subtitle: event.target.value }))}
+                      placeholder="A shard of killing winter"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional secondary display text shown under the title.
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="content_tags">Tags</Label>
+                    <Input
+                      id="content_tags"
+                      value={form.tags}
+                      onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
+                      placeholder="cold, ice, attack"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="content_summary">Summary</Label>
+                  <Textarea
+                    id="content_summary"
+                    value={form.summary}
+                    onChange={(event) => setForm((prev) => ({ ...prev, summary: event.target.value }))}
+                    placeholder="Short list text for this content."
+                  />
+                </div>
+              </div>
+            </EditorSection>
+
+            {isSheetTemplate ? (
+              <EditorSection
+                value="sheet-sections"
+                title="Sheet Sections"
+                description="Define reusable sections and fields for character sheets as JSON."
+              >
                 <div className="grid gap-2">
                   <Label htmlFor="sheet_template_sections">Sections JSON</Label>
                   <Textarea
@@ -827,368 +863,405 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
                     Fields can use text, number, boolean, select, multi_select, dice, formula, resource, counter, textarea, reference, or custom.
                   </p>
                 </div>
-              </section>
+              </EditorSection>
+            ) : null}
 
-              <Separator />
-            </>
-          ) : null}
-
-          {!isSheetTemplate ? (
-          <>
-          <section className="grid gap-4">
-            <div>
-              <h3 className="font-semibold">System And Targeting</h3>
-              <p className="text-sm text-muted-foreground">Capture portable system metadata and target rules.</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="system_id">System ID</Label>
-                <Input
-                  id="system_id"
-                  value={form.system_id}
-                  onChange={(event) => setForm((prev) => ({ ...prev, system_id: event.target.value }))}
-                  placeholder="homebrew-arcanum"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="system_version">System Version</Label>
-                <Input
-                  id="system_version"
-                  value={form.system_version}
-                  onChange={(event) => setForm((prev) => ({ ...prev, system_version: event.target.value }))}
-                  placeholder="0.3"
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="grid gap-2">
-                <Label htmlFor="targeting_type">Targeting Type</Label>
-                <Input
-                  id="targeting_type"
-                  value={form.targeting_type}
-                  onChange={(event) => setForm((prev) => ({ ...prev, targeting_type: event.target.value }))}
-                  placeholder="creature_or_object"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="range_value">Range</Label>
-                <Input
-                  id="range_value"
-                  type="number"
-                  value={form.range_value}
-                  onChange={(event) => setForm((prev) => ({ ...prev, range_value: event.target.value }))}
-                  placeholder="60"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="range_unit">Range Unit</Label>
-                <Input
-                  id="range_unit"
-                  value={form.range_unit}
-                  onChange={(event) => setForm((prev) => ({ ...prev, range_unit: event.target.value }))}
-                  placeholder="feet"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="target_count">Targets</Label>
-                <Input
-                  id="target_count"
-                  type="number"
-                  value={form.target_count}
-                  onChange={(event) => setForm((prev) => ({ ...prev, target_count: event.target.value }))}
-                  placeholder="1"
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="targeting_text">Targeting Text</Label>
-              <Textarea
-                id="targeting_text"
-                value={form.targeting_text}
-                onChange={(event) => setForm((prev) => ({ ...prev, targeting_text: event.target.value }))}
-                placeholder="A creature you can see within range."
-              />
-            </div>
-          </section>
-
-          <Separator />
-          </>
-          ) : null}
-
-          {!isSheetTemplate ? (
-          <>
-          <section className="grid gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="font-semibold">Traits</h3>
-                <p className="text-sm text-muted-foreground">Use key/value facts for filtering and rendering.</p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => setForm((prev) => ({ ...prev, traits: [...prev.traits, emptyTrait()] }))}>
-                <Plus className="h-4 w-4" />
-                Trait
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {form.traits.map((trait, index) => (
-                <div key={index} className="grid gap-3 rounded-md border border-border p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-                  <Input value={trait.key} onChange={(event) => updateArrayItem<TraitRow>('traits', index, { key: event.target.value })} placeholder="school" />
-                  <Input value={trait.value} onChange={(event) => updateArrayItem<TraitRow>('traits', index, { value: event.target.value })} placeholder="evocation" />
-                  <Input value={trait.label} onChange={(event) => updateArrayItem<TraitRow>('traits', index, { label: event.target.value })} placeholder="School" />
-                  <Button type="button" variant="outline" onClick={() => removeArrayItem('traits', index)} aria-label="Remove trait">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <Separator />
-          </>
-          ) : null}
-
-          {!isSheetTemplate ? (
-          <>
-          <section className="grid gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="font-semibold">Requirements</h3>
-                <p className="text-sm text-muted-foreground">Resources, components, prerequisites, and rule text.</p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => setForm((prev) => ({ ...prev, requirements: [...prev.requirements, emptyRequirement()] }))}>
-                <Plus className="h-4 w-4" />
-                Requirement
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {form.requirements.map((requirement, index) => (
-                <div key={index} className="grid gap-3 rounded-md border border-border p-3">
-                  <div className="grid gap-3 md:grid-cols-4">
-                    <Input value={requirement.type} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { type: event.target.value })} placeholder="resource" />
-                    <Input value={requirement.resource} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { resource: event.target.value })} placeholder="spell_slot" />
-                    <Input value={requirement.amount_value} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { amount_value: event.target.value })} placeholder="1" />
-                    <Input value={requirement.component} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { component: event.target.value })} placeholder="verbal" />
+            {!isSheetTemplate ? (
+              <EditorSection
+                value="system-targeting"
+                title="System And Targeting"
+                description="Capture portable system metadata and target rules."
+              >
+                <div className="grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-2">
+                    <Label htmlFor="system_id">System ID</Label>
+                    <Input
+                      id="system_id"
+                      value={form.system_id}
+                        onChange={(event) => setForm((prev) => ({ ...prev, system_id: event.target.value }))}
+                      placeholder="homebrew-arcanum"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Internal identifier for the rules system, not a player-facing title.
+                    </p>
                   </div>
-                  <Textarea value={requirement.text} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { text: event.target.value })} placeholder="Optional requirement text." />
-                  <Button type="button" variant="outline" onClick={() => removeArrayItem('requirements', index)} className="justify-self-start">
-                    <Trash2 className="h-4 w-4" />
-                    Remove Requirement
-                  </Button>
+                    <div className="grid gap-2">
+                      <Label htmlFor="system_version">System Version</Label>
+                      <Input
+                        id="system_version"
+                        value={form.system_version}
+                        onChange={(event) => setForm((prev) => ({ ...prev, system_version: event.target.value }))}
+                        placeholder="0.3"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="targeting_type">Targeting Type</Label>
+                      <Input
+                        id="targeting_type"
+                        value={form.targeting_type}
+                        onChange={(event) => setForm((prev) => ({ ...prev, targeting_type: event.target.value }))}
+                        placeholder="creature_or_object"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="range_value">Range</Label>
+                      <Input
+                        id="range_value"
+                        type="number"
+                        value={form.range_value}
+                        onChange={(event) => setForm((prev) => ({ ...prev, range_value: event.target.value }))}
+                        placeholder="60"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="range_unit">Range Unit</Label>
+                      <Input
+                        id="range_unit"
+                        value={form.range_unit}
+                        onChange={(event) => setForm((prev) => ({ ...prev, range_unit: event.target.value }))}
+                        placeholder="feet"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="target_count">Targets</Label>
+                      <Input
+                        id="target_count"
+                        type="number"
+                        value={form.target_count}
+                        onChange={(event) => setForm((prev) => ({ ...prev, target_count: event.target.value }))}
+                        placeholder="1"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="targeting_text">Targeting Text</Label>
+                    <Textarea
+                      id="targeting_text"
+                      value={form.targeting_text}
+                      onChange={(event) => setForm((prev) => ({ ...prev, targeting_text: event.target.value }))}
+                      placeholder="A creature you can see within range."
+                    />
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
+              </EditorSection>
+            ) : null}
 
-          <Separator />
-          </>
-          ) : null}
-
-          {!isSheetTemplate ? (
-          <>
-          <section className="grid gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="font-semibold">Mechanics</h3>
-                <p className="text-sm text-muted-foreground">Add typed effects for damage, saves, conditions, resources, and custom rules.</p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => setForm((prev) => ({ ...prev, mechanics: [...prev.mechanics, emptyMechanic()] }))}>
-                <Plus className="h-4 w-4" />
-                Mechanic
-              </Button>
-            </div>
-            <div className="space-y-4">
-              {form.mechanics.map((mechanic, index) => (
-                <div key={index} className="grid gap-3 rounded-md border border-border p-3">
-                  <div className="grid gap-3 md:grid-cols-5">
-                    <Input value={mechanic.id} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { id: event.target.value })} placeholder="cold-damage" />
-                    <Input value={mechanic.label} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { label: event.target.value })} placeholder="Cold damage" />
-                    <Input value={mechanic.applies_on} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { applies_on: event.target.value })} placeholder="failed_save" />
-                    <Select value={mechanic.type} onValueChange={(value) => updateArrayItem<MechanicRow>('mechanics', index, { type: value as MechanicKind })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {['damage', 'healing', 'condition', 'saving_throw', 'resource', 'movement', 'text', 'custom'].map((type) => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button type="button" variant="outline" onClick={() => removeArrayItem('mechanics', index)}>
-                      <Trash2 className="h-4 w-4" />
-                      Remove
+            {!isSheetTemplate ? (
+              <EditorSection
+                value="traits"
+                title="Traits"
+                description="Use key/value facts for filtering and rendering."
+              >
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Add quick facts like size, role, creature family, or keywords.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-[44px] w-full sm:w-auto"
+                      onClick={() => setForm((prev) => ({ ...prev, traits: [...prev.traits, emptyTrait()] }))}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Trait
                     </Button>
                   </div>
-
-                  {(mechanic.type === 'damage' || mechanic.type === 'healing' || mechanic.type === 'resource') ? (
-                    <div className="grid gap-3 md:grid-cols-3">
-                      {mechanic.type === 'damage' ? (
-                        <Input value={mechanic.damage_type} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { damage_type: event.target.value })} placeholder="cold" />
-                      ) : null}
-                      {mechanic.type === 'resource' ? (
-                        <>
-                          <Input value={mechanic.resource} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { resource: event.target.value })} placeholder="focus" />
-                          <Input value={mechanic.resource_operation} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { resource_operation: event.target.value })} placeholder="spend" />
-                        </>
-                      ) : null}
-                      <Select value={mechanic.amount_type} onValueChange={(value) => updateArrayItem<MechanicRow>('mechanics', index, { amount_type: value as AmountKind })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="dice">dice</SelectItem>
-                          <SelectItem value="fixed">fixed</SelectItem>
-                          <SelectItem value="formula">formula</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input value={mechanic.amount_value} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { amount_value: event.target.value })} placeholder="3d6" />
-                    </div>
-                  ) : null}
-
-                  {mechanic.type === 'condition' ? (
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <Input value={mechanic.condition} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { condition: event.target.value })} placeholder="slowed" />
-                      <Input value={mechanic.duration_type} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { duration_type: event.target.value })} placeholder="rounds" />
-                      <Input type="number" value={mechanic.duration_value} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { duration_value: event.target.value })} placeholder="1" />
-                    </div>
-                  ) : null}
-
-                  {mechanic.type === 'saving_throw' ? (
-                    <div className="grid gap-3">
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <Input value={mechanic.save_ability} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_ability: event.target.value })} placeholder="agility" />
-                        <Select value={mechanic.save_difficulty_type} onValueChange={(value) => updateArrayItem<MechanicRow>('mechanics', index, { save_difficulty_type: value as MechanicRow['save_difficulty_type'] })}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="fixed">fixed</SelectItem>
-                            <SelectItem value="caster_dc">caster_dc</SelectItem>
-                            <SelectItem value="attribute">attribute</SelectItem>
-                            <SelectItem value="formula">formula</SelectItem>
-                            <SelectItem value="custom">custom</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input value={mechanic.save_difficulty_value} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_difficulty_value: event.target.value })} placeholder="14 or caster_dc note" />
+                  <div className="space-y-3">
+                    {form.traits.map((trait, index) => (
+                      <div key={index} className="grid gap-3 rounded-md border border-border p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                        <Input value={trait.key} onChange={(event) => updateArrayItem<TraitRow>('traits', index, { key: event.target.value })} placeholder="trait-key" aria-label="Trait key" />
+                        <Input value={trait.value} onChange={(event) => updateArrayItem<TraitRow>('traits', index, { value: event.target.value })} placeholder="wolf" aria-label="Trait value" />
+                        <Input value={trait.label} onChange={(event) => updateArrayItem<TraitRow>('traits', index, { label: event.target.value })} placeholder="Trait label shown to players" aria-label="Trait display label" />
+                        <Button type="button" variant="outline" className="min-h-[44px] w-full md:w-auto" onClick={() => removeArrayItem('traits', index)} aria-label="Remove trait">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <p className="text-xs text-muted-foreground md:col-span-3">
+                          `Key` is the internal field name, `Value` is the stored data, and `Label` is the optional display title shown in the renderer.
+                        </p>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <Textarea value={mechanic.save_success_text} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_success_text: event.target.value })} placeholder="Success outcome text." />
-                        <Textarea value={mechanic.save_failure_text} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_failure_text: event.target.value })} placeholder="Failure outcome text." />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {mechanic.type === 'movement' ? (
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <Input value={mechanic.movement_mode} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { movement_mode: event.target.value })} placeholder="push" />
-                      <Input type="number" value={mechanic.movement_distance} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { movement_distance: event.target.value })} placeholder="10" />
-                      <Input value={mechanic.movement_unit} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { movement_unit: event.target.value })} placeholder="feet" />
-                    </div>
-                  ) : null}
-
-                  {mechanic.type === 'text' ? (
-                    <Textarea value={mechanic.text} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { text: event.target.value })} placeholder="Rules text for this effect." />
-                  ) : null}
-
-                  {mechanic.type === 'custom' ? (
-                    <div className="grid gap-3">
-                      <Input value={mechanic.custom_type} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { custom_type: event.target.value })} placeholder="my_system_effect" />
-                      <Textarea value={mechanic.custom_data} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { custom_data: event.target.value })} placeholder='{"key": "value"}' />
-                    </div>
-                  ) : null}
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
+              </EditorSection>
+            ) : null}
 
-          <Separator />
-          </>
-          ) : null}
-
-          {!isSheetTemplate ? (
-          <>
-          <section className="grid gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="font-semibold">Scaling</h3>
-                <p className="text-sm text-muted-foreground">Describe how mechanics change at higher tiers or levels.</p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => setForm((prev) => ({ ...prev, scaling: [...prev.scaling, emptyScaling()] }))}>
-                <Plus className="h-4 w-4" />
-                Scaling Rule
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {form.scaling.map((scaling, index) => (
-                <div key={index} className="grid gap-3 rounded-md border border-border p-3 md:grid-cols-5">
-                  <Input value={scaling.trigger_type} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { trigger_type: event.target.value })} placeholder="slot_level_above" />
-                  <Input value={scaling.trigger_base} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { trigger_base: event.target.value })} placeholder="2" />
-                  <Input value={scaling.target_effect} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { target_effect: event.target.value })} placeholder="cold-damage" />
-                  <Input value={scaling.add_value} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { add_value: event.target.value })} placeholder="1d6" />
-                  <Button type="button" variant="outline" onClick={() => removeArrayItem('scaling', index)}>
-                    <Trash2 className="h-4 w-4" />
-                    Remove
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <Separator />
-          </>
-          ) : null}
-
-          <section className="grid gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="font-semibold">Notes And Rendering</h3>
-                <p className="text-sm text-muted-foreground">Add human-readable rules text and semantic display hints.</p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => setForm((prev) => ({ ...prev, notes: [...prev.notes, emptyNote()] }))}>
-                <Plus className="h-4 w-4" />
-                Note
-              </Button>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <Input value={form.render_short_text} onChange={(event) => setForm((prev) => ({ ...prev, render_short_text: event.target.value }))} placeholder="Short rules summary" />
-              <Input value={form.render_tone} onChange={(event) => setForm((prev) => ({ ...prev, render_tone: event.target.value }))} placeholder="damage, utility, healing" />
-              <Input value={form.render_icon_key} onChange={(event) => setForm((prev) => ({ ...prev, render_icon_key: event.target.value }))} placeholder="snowflake" />
-            </div>
-            <div className="space-y-3">
-              {form.notes.map((note, index) => (
-                <div key={index} className="grid gap-3 rounded-md border border-border p-3">
-                  <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                    <Input value={note.type} onChange={(event) => updateArrayItem<NoteRow>('notes', index, { type: event.target.value })} placeholder="rules_text" />
-                    <Button type="button" variant="outline" onClick={() => removeArrayItem('notes', index)}>
-                      <Trash2 className="h-4 w-4" />
-                      Remove
+            {!isSheetTemplate ? (
+              <EditorSection
+                value="requirements"
+                title="Requirements"
+                description="Resources, components, prerequisites, and rule text."
+              >
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Capture prerequisites, costs, and plain-language restrictions in one place.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-[44px] w-full sm:w-auto"
+                      onClick={() => setForm((prev) => ({ ...prev, requirements: [...prev.requirements, emptyRequirement()] }))}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Requirement
                     </Button>
                   </div>
-                  <Textarea value={note.text} onChange={(event) => updateArrayItem<NoteRow>('notes', index, { text: event.target.value })} placeholder="The frost clings to the target." />
+                  <div className="space-y-3">
+                    {form.requirements.map((requirement, index) => (
+                      <div key={index} className="grid gap-3 rounded-md border border-border p-3">
+                        <div className="grid gap-3 md:grid-cols-4">
+                          <Input value={requirement.type} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { type: event.target.value })} placeholder="resource" />
+                          <Input value={requirement.resource} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { resource: event.target.value })} placeholder="spell_slot" />
+                          <Input value={requirement.amount_value} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { amount_value: event.target.value })} placeholder="1" />
+                          <Input value={requirement.component} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { component: event.target.value })} placeholder="verbal" />
+                        </div>
+                        <Textarea value={requirement.text} onChange={(event) => updateArrayItem<RequirementRow>('requirements', index, { text: event.target.value })} placeholder="Optional requirement text." />
+                        <Button type="button" variant="outline" className="min-h-[44px] w-full justify-center sm:w-auto sm:justify-self-start" onClick={() => removeArrayItem('requirements', index)}>
+                          <Trash2 className="h-4 w-4" />
+                          Remove Requirement
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
+              </EditorSection>
+            ) : null}
 
-          <Separator />
+            {!isSheetTemplate ? (
+              <EditorSection
+                value="mechanics"
+                title="Mechanics"
+                description="Add typed effects for damage, saves, conditions, resources, and custom rules."
+              >
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Structure the actual rules here so preview and rendering stay in sync.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-[44px] w-full sm:w-auto"
+                      onClick={() => setForm((prev) => ({ ...prev, mechanics: [...prev.mechanics, emptyMechanic()] }))}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Mechanic
+                    </Button>
+                  </div>
+                  <div className="space-y-4">
+                    {form.mechanics.map((mechanic, index) => (
+                      <div key={index} className="grid gap-3 rounded-md border border-border p-3">
+                        <div className="grid gap-3 md:grid-cols-5">
+                          <Input value={mechanic.id} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { id: event.target.value })} placeholder="bite-attack" aria-label="Mechanic ID" />
+                          <Input value={mechanic.label} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { label: event.target.value })} placeholder="Bite Attack" aria-label="Mechanic display label" />
+                          <Input value={mechanic.applies_on} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { applies_on: event.target.value })} placeholder="on_hit" aria-label="Mechanic applies on" />
+                          <Select value={mechanic.type} onValueChange={(value) => updateArrayItem<MechanicRow>('mechanics', index, { type: value as MechanicKind })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['damage', 'healing', 'condition', 'saving_throw', 'resource', 'movement', 'text', 'custom'].map((type) => (
+                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button type="button" variant="outline" className="min-h-[44px] w-full md:w-auto" onClick={() => removeArrayItem('mechanics', index)}>
+                            <Trash2 className="h-4 w-4" />
+                            Remove
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          `ID` is the internal reference used by scaling and other links. `Label` is the player-facing name. `Applies On` is an internal trigger/state tag like `on_hit` or `failed_save`.
+                        </p>
 
-          <section className="grid gap-4">
-            <div>
-              <h3 className="font-semibold">Preview</h3>
-              <p className="text-sm text-muted-foreground">Review how this content will appear when rendered from its structured fields.</p>
-            </div>
-            {preview.fields ? (
-              <ContentRender
-                fields={preview.fields}
-                contentName={form.name.trim() || undefined}
-                summary={form.summary.trim() || null}
-                mode="full"
-                visibility="gm"
-              />
-            ) : (
-              <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
-                {preview.error}
+                        {(mechanic.type === 'damage' || mechanic.type === 'healing' || mechanic.type === 'resource') ? (
+                          <div className="grid gap-3 md:grid-cols-3">
+                            {mechanic.type === 'damage' ? (
+                              <Input value={mechanic.damage_type} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { damage_type: event.target.value })} placeholder="cold" />
+                            ) : null}
+                            {mechanic.type === 'resource' ? (
+                              <>
+                                <Input value={mechanic.resource} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { resource: event.target.value })} placeholder="focus" />
+                                <Input value={mechanic.resource_operation} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { resource_operation: event.target.value })} placeholder="spend" />
+                              </>
+                            ) : null}
+                            <Select value={mechanic.amount_type} onValueChange={(value) => updateArrayItem<MechanicRow>('mechanics', index, { amount_type: value as AmountKind })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="dice">dice</SelectItem>
+                                <SelectItem value="fixed">fixed</SelectItem>
+                                <SelectItem value="formula">formula</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input value={mechanic.amount_value} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { amount_value: event.target.value })} placeholder="3d6" />
+                          </div>
+                        ) : null}
+
+                        {mechanic.type === 'condition' ? (
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <Input value={mechanic.condition} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { condition: event.target.value })} placeholder="slowed" />
+                            <Input value={mechanic.duration_type} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { duration_type: event.target.value })} placeholder="rounds" />
+                            <Input type="number" value={mechanic.duration_value} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { duration_value: event.target.value })} placeholder="1" />
+                          </div>
+                        ) : null}
+
+                        {mechanic.type === 'saving_throw' ? (
+                          <div className="grid gap-3">
+                            <div className="grid gap-3 md:grid-cols-3">
+                              <Input value={mechanic.save_ability} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_ability: event.target.value })} placeholder="agility" />
+                              <Select value={mechanic.save_difficulty_type} onValueChange={(value) => updateArrayItem<MechanicRow>('mechanics', index, { save_difficulty_type: value as MechanicRow['save_difficulty_type'] })}>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="fixed">fixed</SelectItem>
+                                  <SelectItem value="caster_dc">caster_dc</SelectItem>
+                                  <SelectItem value="attribute">attribute</SelectItem>
+                                  <SelectItem value="formula">formula</SelectItem>
+                                  <SelectItem value="custom">custom</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input value={mechanic.save_difficulty_value} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_difficulty_value: event.target.value })} placeholder="14 or caster_dc note" />
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <Textarea value={mechanic.save_success_text} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_success_text: event.target.value })} placeholder="Success outcome text." />
+                              <Textarea value={mechanic.save_failure_text} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { save_failure_text: event.target.value })} placeholder="Failure outcome text." />
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {mechanic.type === 'movement' ? (
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <Input value={mechanic.movement_mode} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { movement_mode: event.target.value })} placeholder="push" />
+                            <Input type="number" value={mechanic.movement_distance} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { movement_distance: event.target.value })} placeholder="10" />
+                            <Input value={mechanic.movement_unit} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { movement_unit: event.target.value })} placeholder="feet" />
+                          </div>
+                        ) : null}
+
+                        {mechanic.type === 'text' ? (
+                          <Textarea value={mechanic.text} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { text: event.target.value })} placeholder="Rules text for this effect." />
+                        ) : null}
+
+                        {mechanic.type === 'custom' ? (
+                          <div className="grid gap-3">
+                            <Input value={mechanic.custom_type} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { custom_type: event.target.value })} placeholder="my_system_effect" />
+                            <Textarea value={mechanic.custom_data} onChange={(event) => updateArrayItem<MechanicRow>('mechanics', index, { custom_data: event.target.value })} placeholder='{"key": "value"}' />
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </EditorSection>
+            ) : null}
+
+            {!isSheetTemplate ? (
+              <EditorSection
+                value="scaling"
+                title="Scaling"
+                description="Describe how mechanics change at higher tiers or levels."
+              >
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Use scaling rules when a mechanic changes by level, tier, slot, or another trigger.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-[44px] w-full sm:w-auto"
+                      onClick={() => setForm((prev) => ({ ...prev, scaling: [...prev.scaling, emptyScaling()] }))}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Scaling Rule
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {form.scaling.map((scaling, index) => (
+                      <div key={index} className="grid gap-3 rounded-md border border-border p-3 md:grid-cols-5">
+                        <Input value={scaling.trigger_type} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { trigger_type: event.target.value })} placeholder="slot_level_above" />
+                        <Input value={scaling.trigger_base} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { trigger_base: event.target.value })} placeholder="2" />
+                        <Input value={scaling.target_effect} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { target_effect: event.target.value })} placeholder="cold-damage" />
+                        <Input value={scaling.add_value} onChange={(event) => updateArrayItem<ScalingRow>('scaling', index, { add_value: event.target.value })} placeholder="1d6" />
+                        <Button type="button" variant="outline" className="min-h-[44px] w-full md:w-auto" onClick={() => removeArrayItem('scaling', index)}>
+                          <Trash2 className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </EditorSection>
+            ) : null}
+
+            <EditorSection
+              value="notes"
+              title="Notes And Rendering"
+              description="Add human-readable rules text and semantic display hints."
+            >
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Keep readable rule text here and tune how the renderer summarizes the content.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-[44px] w-full sm:w-auto"
+                    onClick={() => setForm((prev) => ({ ...prev, notes: [...prev.notes, emptyNote()] }))}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Note
+                  </Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Input value={form.render_short_text} onChange={(event) => setForm((prev) => ({ ...prev, render_short_text: event.target.value }))} placeholder="Short rules summary" />
+                  <Input value={form.render_tone} onChange={(event) => setForm((prev) => ({ ...prev, render_tone: event.target.value }))} placeholder="damage, utility, healing" />
+                  <Input value={form.render_icon_key} onChange={(event) => setForm((prev) => ({ ...prev, render_icon_key: event.target.value }))} placeholder="snowflake" />
+                </div>
+                <div className="space-y-3">
+                  {form.notes.map((note, index) => (
+                    <div key={index} className="grid gap-3 rounded-md border border-border p-3">
+                      <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                        <Input value={note.type} onChange={(event) => updateArrayItem<NoteRow>('notes', index, { type: event.target.value })} placeholder="rules_text" />
+                        <Button type="button" variant="outline" className="min-h-[44px] w-full md:w-auto" onClick={() => removeArrayItem('notes', index)}>
+                          <Trash2 className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      </div>
+                      <Textarea value={note.text} onChange={(event) => updateArrayItem<NoteRow>('notes', index, { text: event.target.value })} placeholder="The frost clings to the target." />
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-          </section>
+            </EditorSection>
+
+            <EditorSection
+              value="preview"
+              title="Preview"
+              description="Review how this content will appear when rendered from its structured fields."
+            >
+              {preview.fields ? (
+                <ContentRender
+                  fields={preview.fields}
+                  contentName={form.name.trim() || undefined}
+                  summary={form.summary.trim() || null}
+                  mode="full"
+                  visibility="gm"
+                />
+              ) : (
+                <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
+                  {preview.error}
+                </div>
+              )}
+            </EditorSection>
+          </Accordion>
 
           {error ? (
             <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">

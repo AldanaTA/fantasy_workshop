@@ -2,6 +2,13 @@ import type { JSONDict } from './misc';
 
 export const CAMPAIGN_NOTE_DOC_SCHEMA_VERSION = 'campaign_note_doc_v1' as const;
 
+export type CampaignNoteLinkedRule = {
+  content_id: string;
+  label?: string | null;
+  link_mode: 'live' | 'snapshot';
+  pinned_version_num?: number | null;
+};
+
 export type CampaignNoteMarkType = 'bold' | 'italic';
 
 export type CampaignNoteMark = {
@@ -64,6 +71,7 @@ export type CampaignNoteDocument = {
   schema_version: typeof CAMPAIGN_NOTE_DOC_SCHEMA_VERSION;
   type: 'doc';
   content: CampaignNoteBlockNode[];
+  linked_rules?: CampaignNoteLinkedRule[];
 };
 
 export type LegacyRichTextHtmlNoteBody = JSONDict & {

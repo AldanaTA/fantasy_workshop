@@ -6,6 +6,7 @@ import {
   type CampaignNoteDocument,
   type CampaignNoteHardBreakNode,
   type CampaignNoteInlineNode,
+  type CampaignNoteLinkedRule,
   type CampaignNoteListItemNode,
   type CampaignNoteMark,
   type CampaignNoteTextNode,
@@ -16,6 +17,7 @@ export function createEmptyCampaignNoteDocument(): CampaignNoteDocument {
     schema_version: CAMPAIGN_NOTE_DOC_SCHEMA_VERSION,
     type: 'doc',
     content: [],
+    linked_rules: [],
   };
 }
 
@@ -58,9 +60,15 @@ export function campaignNoteDocumentToTiptapContent(document: CampaignNoteDocume
   };
 }
 
-export function campaignNoteDocumentFromTiptapContent(content: unknown): CampaignNoteDocument {
+export function campaignNoteDocumentFromTiptapContent(
+  content: unknown,
+  options?: { linked_rules?: CampaignNoteLinkedRule[] },
+): CampaignNoteDocument {
   if (!content || typeof content !== 'object') {
-    return createEmptyCampaignNoteDocument();
+    return {
+      ...createEmptyCampaignNoteDocument(),
+      linked_rules: normalizeLinkedRules(options?.linked_rules),
+    };
   }
 
   const candidate = content as { type?: string; content?: unknown[] };
@@ -68,6 +76,7 @@ export function campaignNoteDocumentFromTiptapContent(content: unknown): Campaig
     schema_version: CAMPAIGN_NOTE_DOC_SCHEMA_VERSION,
     type: candidate.type === 'doc' ? 'doc' : 'doc',
     content: Array.isArray(candidate.content) ? candidate.content.map(normalizeBlockNode).filter(Boolean) : [],
+    linked_rules: normalizeLinkedRules(options?.linked_rules),
   });
 }
 
@@ -104,6 +113,7 @@ function normalizeDocument(document: CampaignNoteDocument): CampaignNoteDocument
     schema_version: CAMPAIGN_NOTE_DOC_SCHEMA_VERSION,
     type: 'doc',
     content: (document.content ?? []).map(normalizeBlockNode).filter(Boolean),
+    linked_rules: normalizeLinkedRules(document.linked_rules),
   };
 }
 
@@ -112,7 +122,35 @@ function normalizeLegacyDocBody(body: { content?: unknown[] }) {
     schema_version: CAMPAIGN_NOTE_DOC_SCHEMA_VERSION,
     type: 'doc',
     content: (body.content ?? []).map(normalizeLegacyBlockNode).filter(Boolean),
+    linked_rules: [],
   });
+}
+
+function normalizeLinkedRules(value: unknown): CampaignNoteLinkedRule[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const candidate = item as Partial<CampaignNoteLinkedRule>;
+      if (typeof candidate.content_id !== 'string' || !candidate.content_id) {
+        return null;
+      }
+
+      const link_mode = candidate.link_mode === 'snapshot' ? 'snapshot' : 'live';
+      return {
+        content_id: candidate.content_id,
+        label: typeof candidate.label === 'string' ? candidate.label : null,
+        link_mode,
+        pinned_version_num:
+          typeof candidate.pinned_version_num === 'number' && Number.isFinite(candidate.pinned_version_num)
+            ? candidate.pinned_version_num
+            : null,
+      } satisfies CampaignNoteLinkedRule;
+    })
+    .filter(Boolean) as CampaignNoteLinkedRule[];
 }
 
 function normalizeBlockNode(node: unknown): CampaignNoteBlockNode | null {

@@ -66,8 +66,14 @@ export function CampaignNoteEditor({
   helperText,
 }: CampaignNoteEditorProps) {
   const lastEmittedValueRef = useRef<string>(JSON.stringify(campaignNoteDocumentToTiptapContent(value)));
+  const linkedRulesRef = useRef(value.linked_rules);
   const normalizedValue = useMemo(() => campaignNoteDocumentToTiptapContent(value), [value]);
   const [toolbarState, setToolbarState] = useState<ToolbarState>(defaultToolbarState);
+
+  useEffect(() => {
+    linkedRulesRef.current = value.linked_rules;
+  }, [value.linked_rules]);
+
   const editor = useEditor({
     immediatelyRender: false,
     editable: !readOnly,
@@ -100,7 +106,9 @@ export function CampaignNoteEditor({
       },
     },
     onUpdate: ({ editor: nextEditor }) => {
-      const nextValue = campaignNoteDocumentFromTiptapContent(nextEditor.getJSON());
+      const nextValue = campaignNoteDocumentFromTiptapContent(nextEditor.getJSON(), {
+        linked_rules: linkedRulesRef.current,
+      });
       lastEmittedValueRef.current = JSON.stringify(campaignNoteDocumentToTiptapContent(nextValue));
       onChange(nextValue);
     },
