@@ -68,6 +68,18 @@ export type ContentTrait = {
 	label?: string;
 };
 
+export type ContentSectionEntry = {
+	key: string;
+	value?: JSONValue;
+	text?: string;
+};
+
+export type ContentSection = {
+	id: string;
+	title: string;
+	entries: ContentSectionEntry[];
+};
+
 export type ContentRequirement = {
 	type: string;
 	resource?: string;
@@ -203,21 +215,29 @@ export type ContentScalingRule = {
 
 export type ContentScalingEffect =
 	| {
-		type: 'modify_damage';
-		target_effect: string;
-		add?: ContentAmount;
-		multiply?: number;
-	}
+			type: 'modify_damage';
+			target_effect: string;
+			add?: ContentAmount;
+			multiply?: number;
+		}
 	| {
-		type: 'modify_healing';
-		target_effect: string;
-		add?: ContentAmount;
-		multiply?: number;
-	}
+			type: 'modify_healing';
+			target_effect: string;
+			add?: ContentAmount;
+			multiply?: number;
+		}
 	| {
-		type: 'add_effect';
-		effect: ContentEffect;
-	}
+			type: 'modify_mechanic';
+			target_effect: string;
+			target_effect_type?: string;
+			label?: string;
+			add?: ContentAmount;
+			multiply?: number;
+		}
+	| {
+			type: 'add_effect';
+			effect: ContentEffect;
+		}
 	| {
 		type: 'custom';
 		custom_type: string;
@@ -267,6 +287,7 @@ export interface TtrpgContentFieldsV1 {
 		version?: string;
 	};
 	traits?: ContentTrait[];
+	sections?: ContentSection[];
 	requirements?: ContentRequirement[];
 	targeting?: ContentTargeting;
 	mechanics: ContentEffect[];
@@ -356,85 +377,6 @@ export type ContentFields = TtrpgContentFieldsV1 | CharacterSheetTemplateFieldsV
 export type AmountKind = 'dice' | 'fixed' | 'formula';
 export type MechanicKind = 'damage' | 'healing' | 'condition' | 'saving_throw' | 'resource' | 'movement' | 'text' | 'custom';
 
-export type TraitRow = {
-  key: string;
-  value: string;
-  label: string;
-};
-
-export type RequirementRow = {
-  type: string;
-  resource: string;
-  component: string;
-  amount_type: AmountKind;
-  amount_value: string;
-  text: string;
-};
-
-export type MechanicRow = {
-  id: string;
-  type: MechanicKind;
-  label: string;
-  damage_type: string;
-  amount_type: AmountKind;
-  amount_value: string;
-  condition: string;
-  duration_type: string;
-  duration_value: string;
-  save_ability: string;
-  save_difficulty_type: 'fixed' | 'caster_dc' | 'attribute' | 'formula' | 'custom';
-  save_difficulty_value: string;
-  resource: string;
-  resource_operation: string;
-  movement_mode: string;
-  movement_distance: string;
-  movement_unit: string;
-  text: string;
-  custom_type: string;
-  custom_data: string;
-  applies_on: string;
-  save_success_text: string;
-  save_failure_text: string;
-};
-
-export type ScalingRow = {
-  trigger_type: string;
-  trigger_base: string;
-  trigger_text: string;
-  target_effect: string;
-  add_type: AmountKind;
-  add_value: string;
-};
-
-export type NoteRow = {
-  type: string;
-  text: string;
-};
-
-export interface ContentFormState {
-  name: string;
-  summary: string;
-  content_type: ContentType;
-  subtitle: string;
-  tags: string;
-  system_id: string;
-  system_version: string;
-  targeting_type: string;
-  range_value: string;
-  range_unit: string;
-  target_count: string;
-  targeting_text: string;
-  render_short_text: string;
-  render_tone: string;
-  render_icon_key: string;
-  traits: TraitRow[];
-  requirements: RequirementRow[];
-  mechanics: MechanicRow[];
-  scaling: ScalingRow[];
-  notes: NoteRow[];
-  sheet_template_sections_json: string;
-}
-
 export const createEmptyContentFields = (
 	contentType: ContentType | string = 'custom',
 	title?: string,
@@ -455,12 +397,13 @@ export const createEmptyContentFields = (
 	return {
 		schema_version: TTRPG_CONTENT_SCHEMA_VERSION,
 		content_type: contentType,
-		title,
-		traits: [],
-		requirements: [],
-		mechanics: [],
-		scaling: [],
-		notes: [],
+			title,
+			traits: [],
+			sections: [],
+			requirements: [],
+			mechanics: [],
+			scaling: [],
+			notes: [],
 	};
 };
 
@@ -556,6 +499,10 @@ export const validateContentFields = (fields: ContentFields): string[] => {
 
 	if (maybeTypedFields.traits !== undefined && !Array.isArray(maybeTypedFields.traits)) {
 		errors.push('Content fields traits must be an array.');
+	}
+
+	if ((maybeTypedFields as Partial<TtrpgContentFieldsV1>).sections !== undefined && !Array.isArray((maybeTypedFields as Partial<TtrpgContentFieldsV1>).sections)) {
+		errors.push('Content fields sections must be an array.');
 	}
 
 	if (Array.isArray(maybeTypedFields.mechanics)) {

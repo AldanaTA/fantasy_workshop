@@ -19,6 +19,7 @@ import {
   ContentRequirement,
   ContentScalingEffect,
   ContentScalingRule,
+  ContentSection,
   ContentTargeting,
   ContentTrait,
   isCharacterSheetTemplateFieldsV1,
@@ -172,6 +173,7 @@ function TtrpgContentRender({
       />
       <div className="space-y-6 text-sm leading-7">
         {fields.traits?.length ? <TraitsList traits={fields.traits} /> : null}
+        {fields.sections?.length ? <CustomSectionsList sections={fields.sections} /> : null}
         {fields.requirements?.length ? <RequirementsList requirements={fields.requirements} onRoll={onRoll} /> : null}
         {fields.targeting ? <TargetingBlock targeting={fields.targeting} onRoll={onRoll} /> : null}
         {visibleEffects.length ? (
@@ -179,7 +181,7 @@ function TtrpgContentRender({
             <MechanicsList effects={visibleEffects} contentType={fields.content_type} onRoll={onRoll} />
           </SectionBlock>
         ) : null}
-        {fields.scaling?.length ? <ScalingList scaling={fields.scaling} contentType={fields.content_type} onRoll={onRoll} /> : null}
+        {fields.scaling?.length ? <ScalingList scaling={fields.scaling} mechanics={fields.mechanics} contentType={fields.content_type} onRoll={onRoll} /> : null}
         <NotesList notes={fields.notes} visibility={visibility} />
       </div>
     </article>
@@ -433,7 +435,7 @@ function CompactFacts({
 }) {
   const facts = [
     targeting ? `Target: ${formatTargetingBrief(targeting)}` : undefined,
-    ...(traits ?? []).slice(0, 3).map((trait) => `${trait.label || formatLabel(trait.key)}: ${formatJsonValue(trait.value)}`),
+    ...(traits ?? []).slice(0, 3).map((trait) => `${trait.key}: ${formatJsonValue(trait.value)}`),
     requirements?.length ? `${requirements.length} requirement${requirements.length === 1 ? '' : 's'}` : undefined,
   ].filter((fact): fact is string => Boolean(fact));
 
@@ -455,12 +457,32 @@ function TraitsList({ traits }: { traits: ContentTrait[] }) {
         {traits.map((trait) => (
           <MetadataRow
             key={trait.key}
-            label={trait.label || formatLabel(trait.key)}
+            label={trait.key}
             value={formatJsonValue(trait.value)}
           />
         ))}
       </dl>
     </SectionBlock>
+  );
+}
+
+function CustomSectionsList({ sections }: { sections: ContentSection[] }) {
+  return (
+    <div className="space-y-6">
+      {sections.map((section) => (
+        <SectionBlock key={section.id} title={section.title}>
+          <ul className="space-y-2 pl-5">
+            {section.entries.map((entry, index) => (
+              <li key={`${section.id}-${entry.key}-${index}`} className="list-disc">
+                <span className="font-medium">{entry.key}</span>
+                {entry.value !== undefined ? <span className="text-muted-foreground">: {formatJsonValue(entry.value)}</span> : null}
+                {entry.text ? <span className="text-muted-foreground">. {entry.text}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </SectionBlock>
+      ))}
+    </div>
   );
 }
 
@@ -725,10 +747,12 @@ function OutcomeList({ title, outcomes }: { title: string; outcomes?: ContentOut
 
 function ScalingList({
   scaling,
+  mechanics,
   contentType,
   onRoll,
 }: {
   scaling: ContentScalingRule[];
+  mechanics: ContentEffect[];
   contentType?: string;
   onRoll?: ContentRenderProps['onRoll'];
 }) {
@@ -744,6 +768,7 @@ function ScalingList({
                   <ScalingEffectRow
                     key={effectIndex}
                     effect={effect}
+                    mechanics={mechanics}
                     contentType={contentType}
                     onRoll={onRoll}
                   />
@@ -759,10 +784,12 @@ function ScalingList({
 
 function ScalingEffectRow({
   effect,
+  mechanics,
   contentType,
   onRoll,
 }: {
   effect: ContentScalingEffect;
+  mechanics: ContentEffect[];
   contentType?: string;
   onRoll?: ContentRenderProps['onRoll'];
 }) {
@@ -780,11 +807,24 @@ function ScalingEffectRow({
 
   return (
     <li className="list-disc text-muted-foreground">
-      {formatLabel(effect.type)} {effect.target_effect ? `for ${effect.target_effect}` : null}
+      {formatScalingEffectLabel(effect, mechanics)}
       {effect.add ? `, add ${formatAmount(effect.add)}` : null}
       {effect.multiply !== undefined ? `, multiply by ${effect.multiply}` : null}
     </li>
   );
+}
+
+function formatScalingEffectLabel(effect: Exclude<ContentScalingEffect, { type: 'add_effect' } | { type: 'custom' }>, mechanics: ContentEffect[]) {
+  const targetMechanic = mechanics.find((mechanic) => mechanic.id === effect.target_effect);
+  const targetLabel = targetMechanic
+    ? `${targetMechanic.label || targetMechanic.id || formatLabel(targetMechanic.type)} (${targetMechanic.type})`
+    : effect.target_effect;
+
+  if (effect.type === 'modify_mechanic') {
+    return `Modify mechanic${targetLabel ? ` for ${targetLabel}` : ''}`;
+  }
+
+  return `${formatLabel(effect.type)}${targetLabel ? ` for ${targetLabel}` : ''}`;
 }
 
 function NotesList({
