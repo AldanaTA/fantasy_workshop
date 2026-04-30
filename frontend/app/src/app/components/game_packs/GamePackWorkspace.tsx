@@ -44,6 +44,9 @@ export function GamePackWorkspace({
   const [eligibleGames, setEligibleGames] = useState<LibraryGame[]>([]);
   const [isLoading, setIsLoading] = useState(mode === 'creator' || !lockedGame);
   const [error, setError] = useState<string | null>(null);
+  const [creatorBackTarget, setCreatorBackTarget] = useState<'dashboard' | 'workspace'>(
+    initialGameId ? 'dashboard' : 'workspace'
+  );
   const lockedGameId = campaign?.game_id ?? initialGameId ?? null;
 
   useEffect(() => {
@@ -69,6 +72,7 @@ export function GamePackWorkspace({
           setEligibleGames(packEligibleGames);
 
           if (initialGameId) {
+            setCreatorBackTarget('dashboard');
             setSelectedGame(packEligibleGames.find((game) => game.id === initialGameId) ?? null);
           }
           return;
@@ -101,6 +105,25 @@ export function GamePackWorkspace({
     };
   }, [campaign, initialGameId, lockedGame, lockedGameId, mode]);
 
+  const backButtonConfig =
+    mode === 'campaign'
+      ? {
+          onBack,
+          label: 'Back',
+          shortLabel: 'Back',
+        }
+      : creatorBackTarget === 'dashboard'
+        ? {
+            onBack,
+            label: 'Back to Creator Dashboard',
+            shortLabel: 'Dashboard',
+          }
+        : {
+            onBack: () => setSelectedGame(null),
+            label: 'Back to Pack Workspace',
+            shortLabel: 'Workspace',
+          };
+
   if (selectedGame) {
     return (
       <ViewGamePacks
@@ -108,7 +131,10 @@ export function GamePackWorkspace({
         campaign={campaign ?? undefined}
         initialResumeState={getPackResumeState?.(selectedGame.id) ?? null}
         onResumeStateChange={(state) => onPackResumeStateChange?.(selectedGame.id, state)}
-        onBack={mode === 'campaign' ? onBack : () => setSelectedGame(null)}
+        showBackButton={mode !== 'campaign'}
+        onBack={backButtonConfig.onBack}
+        backButtonLabel={backButtonConfig.label}
+        backButtonShortLabel={backButtonConfig.shortLabel}
       />
     );
   }
@@ -139,7 +165,10 @@ export function GamePackWorkspace({
         description="Choose any game you own, can edit, or have purchased to create and manage content packs."
         emptyTitle="No pack-ready games found"
         emptyDescription="Purchased games and games you can edit will appear here when they are available in your library."
-        onManagePacks={setSelectedGame}
+        onManagePacks={(game) => {
+          setCreatorBackTarget('workspace');
+          setSelectedGame(game);
+        }}
       />
     </div>
   );

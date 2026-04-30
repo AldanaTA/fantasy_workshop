@@ -58,7 +58,10 @@ type Props = {
   initialExpandedCategoryId?: string | null;
   onResumeStateChange?: (expandedCategoryId: string | null) => void;
   onBackToPacks?: () => void;
-  onGoToDashboard?: () => void;
+  showBackButton?: boolean;
+  onGoBack?: () => void;
+  backButtonLabel?: string;
+  backButtonShortLabel?: string;
 };
 
 export function ViewPackCategories({
@@ -66,7 +69,10 @@ export function ViewPackCategories({
   initialExpandedCategoryId = null,
   onResumeStateChange,
   onBackToPacks,
-  onGoToDashboard,
+  showBackButton = true,
+  onGoBack,
+  backButtonLabel = 'Back',
+  backButtonShortLabel = 'Back',
 }: Props) {
   const [contentCategories, setContentCategories] = useState<ContentCategory[]>([]);
   const [isloading, setIsLoading] = useState(true);
@@ -374,10 +380,13 @@ export function ViewPackCategories({
               <span className="truncate sm:hidden">Packs</span>
               <span className="hidden sm:inline">Pack List</span>
             </Button>
-            <Button onClick={onGoToDashboard} className="min-h-[44px] min-w-0 px-2 sm:shrink-0 sm:px-4">
-              <CircleArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="truncate">Dashboard</span>
-            </Button>
+            {showBackButton ? (
+              <Button onClick={onGoBack} className="min-h-[44px] min-w-0 px-2 sm:shrink-0 sm:px-4">
+                <CircleArrowLeft className="h-4 w-4 shrink-0" />
+                <span className="truncate sm:hidden">{backButtonShortLabel}</span>
+                <span className="hidden sm:inline">{backButtonLabel}</span>
+              </Button>
+            ) : null}
             <Button onClick={openCreateDialog} className="min-h-[44px] min-w-0 px-2 sm:shrink-0 sm:px-4">
               <Plus className="h-4 w-4 shrink-0" />
               <span className="truncate sm:hidden">Category</span>

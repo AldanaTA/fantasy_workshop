@@ -58,6 +58,9 @@ type Props = {
   game: Game;
   campaign?: Campaign | null;
   onBack?: () => void;
+  showBackButton?: boolean;
+  backButtonLabel?: string;
+  backButtonShortLabel?: string;
   initialResumeState?: CreatorPackResumeState | null;
   onResumeStateChange?: (state: CreatorPackResumeState) => void;
 };
@@ -66,6 +69,9 @@ export function ViewGamePacks({
   game,
   campaign,
   onBack,
+  showBackButton = true,
+  backButtonLabel = 'Back',
+  backButtonShortLabel = 'Back',
   initialResumeState = null,
   onResumeStateChange,
 }: Props) {
@@ -263,7 +269,10 @@ export function ViewGamePacks({
           })
         }
         onBackToPacks={() => setViewTarget(null)}
-        onGoToDashboard={onBack}
+        showBackButton={showBackButton}
+        onGoBack={onBack}
+        backButtonLabel={backButtonLabel}
+        backButtonShortLabel={backButtonShortLabel}
       />
     );
   }
@@ -320,14 +329,14 @@ export function ViewGamePacks({
             </p>
           </div>
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
-          {onBack ? (
+          {showBackButton && onBack ? (
             <Button
               onClick={onBack}
               className="min-h-[44px] min-w-0 px-2 sm:px-4"
             >
               <CircleArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="truncate sm:hidden">Dashboard</span>
-              <span className="hidden sm:inline">Back to Dashboard</span>
+              <span className="truncate sm:hidden">{backButtonShortLabel}</span>
+              <span className="hidden sm:inline">{backButtonLabel}</span>
             </Button>
           ) : null}
           <Button
