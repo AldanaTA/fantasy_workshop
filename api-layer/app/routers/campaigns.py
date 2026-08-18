@@ -7,8 +7,7 @@ from redis.asyncio import Redis
 from app.schema.db import get_db, get_redis
 from app.conf import settings
 from app.helpers import new_id, require_user
-from app.helpers_cache import cache_get_json, cache_set_json
-from app.helpers_cache_index import cache_index_add, cache_index_invalidate
+from app.helpers_cache import cache_get_json, cache_set_json, cache_index_add,cache_index_invalidate
 from app.routers.deps import (
     require_campaign_role,
     CAN_MANAGE_CAMPAIGN,

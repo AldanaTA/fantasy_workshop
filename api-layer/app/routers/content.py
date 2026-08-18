@@ -7,8 +7,10 @@ from redis.asyncio import Redis
 from app.schema.db import get_db, get_redis
 from app.conf import settings
 from app.helpers import require_user, new_id
-from app.helpers_cache import cache_get_json, cache_set_json, cache_get_or_set_json
-from app.helpers_cache_index import cache_index_add, cache_index_invalidate
+from app.helpers_cache import (
+    cache_get_json, cache_set_json, 
+    cache_get_or_set_json, cache_index_add, cache_index_invalidate)
+
 from app.schema.models import (
     ContentAuthority,
     Content,
@@ -21,6 +23,7 @@ from app.schema.models import (
     Game,
     UserGameRole,
 )
+
 from app.schema.schemas import (
     ContentCategoryMembershipCreate,
     ContentCategoryMembershipOut,

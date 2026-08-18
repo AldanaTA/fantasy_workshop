@@ -15,7 +15,7 @@ export interface User {
     updated_at: DateTime
 }
 
-export type TokenPair = { user_id: UUID; access_token: string; refresh_token: string };
+export type TokenPair = { user_id: UUID; access_token: string; };
 
 // ---------- CONTENT ----------
 

@@ -16,4 +16,6 @@ class Settings(BaseModel):
     CACHE_DEFAULT_TTL_SECONDS: int = int(os.getenv("CACHE_DEFAULT_TTL_SECONDS", "30"))
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
+    COOKIE_SECURE: bool = (os.getenv("COOKIE_SECURE", "false").lower() == "true")  # Set to true in production
+
 settings = Settings()

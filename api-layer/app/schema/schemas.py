@@ -433,7 +433,6 @@ class AuthUser(BaseModel):
 class TokenPairOut(BaseModel):
     user_id: UUID
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
 
 class LoginIn(BaseModel):
@@ -443,9 +442,6 @@ class LoginIn(BaseModel):
 
 
 ChatMessagePageOut.model_rebuild()
-
-class RefreshIn(BaseModel):
-    refresh_token: str
 
 #--- INVITES ----------
 class InviteCreate(BaseModel):

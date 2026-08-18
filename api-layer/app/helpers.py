@@ -2,7 +2,7 @@ from uuid import UUID
 from datetime import datetime, timedelta, timezone
 import hashlib, hmac, secrets, json
 import jwt
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query, Response, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from uuid_extensions import uuid7
 from argon2 import PasswordHasher
@@ -74,3 +74,51 @@ def json_dumps(obj) -> str:
 
 def json_loads(s: str):
     return json.loads(s)
+
+### REFRESH TOKEN HELPERS ###
+REFRESH_COOKIE_NAME = "refresh_token"
+
+'''
+Sets Refresh Token cookie in the response. 
+The cookie is HTTP only, secure, and has a max age defined by settings. 
+It is set for the /auth path.
+'''
+def set_refresh_cookie(response: Response, refresh_token: str):
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_TTL_SECONDS,
+        path="/auth",
+    )
+
+'''
+Clears the Refresh Token cookie from the response.
+'''
+def clear_refresh_cookie(response: Response):
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        path="/auth",
+        secure=settings.COOKIE_SECURE,
+        httponly=True,
+        samesite="lax",
+    )
+
+'''
+Retrieves the Refresh Token from the request cookies.
+Raises an HTTPException if the token is missing.'''
+def get_refresh_cookie(request: Request) -> str:
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token missing",
+        )
+
+    return refresh_token
+
+def get_refresh_cookie_name() -> str:
+    return REFRESH_COOKIE_NAME

@@ -9,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.conf import settings
 from app.helpers import json_dumps, new_id, require_user_ws
-from app.helpers_cache import cache_get_json, cache_set_json
-from app.helpers_cache_index import cache_index_add
+from app.helpers_cache import cache_get_json, cache_set_json, cache_index_add
 from app.helpers_rate_limit import rate_limit_or_429
 from app.routers.deps import CAN_READ_CAMPAIGN, CAN_WRITE_CHAT, get_campaign_role_for_user, require_campaign_role
 from app.schema.db import get_db, get_redis
