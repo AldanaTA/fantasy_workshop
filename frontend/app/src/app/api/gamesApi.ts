@@ -8,7 +8,7 @@ import type {
   GameSharePreview,
   LibraryGame,
 } from './models';
-import { getAccessToken } from './authStorage';
+import { authStore } from './authStorage';
 import { fetchWithCache, invalidateCacheByPrefix } from './requestCache';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_GAMES;
@@ -32,7 +32,7 @@ export function invalidateGameCaches(gameId?: string) {
 }
 
 const authHeaders = (token?: string) => {
-  const t = token ?? getAccessToken();
+  const t = token ?? authStore.getAccessToken();
   return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
 

@@ -10,7 +10,7 @@ import type {
   ContentWithActiveVersion,
 } from './models';
 import { validateContentFields } from '../types/contentFields';
-import { getAccessToken } from './authStorage';
+import { authStore } from './authStorage';
 import { fetchWithCache, invalidateCacheByPrefix } from './requestCache';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT;
@@ -48,7 +48,7 @@ function invalidateContentItemCaches(contentId: string) {
 }
 
 const authHeaders = (token?: string) => {
-  const t = token ?? getAccessToken();
+  const t = token ?? authStore.getAccessToken();
   return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
 

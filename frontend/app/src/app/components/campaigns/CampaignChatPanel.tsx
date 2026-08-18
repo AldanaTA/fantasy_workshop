@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import { campaignsApi } from '../../api/campaignsApi';
-import { get_display_name, get_userId } from '../../api/authStorage';
+import { authStore } from '../../api/authStorage';
 import { chatApi } from '../../api/chatApi';
 import type { Campaign, CampaignChatMessage, CampaignEvent, UserCampaignRole } from '../../api/models';
 import { Badge } from '../ui/badge';
@@ -92,12 +92,12 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
   const { toast } = useToast();
   const currentUserId = useMemo(() => {
     try {
-      return get_userId();
+      return authStore.getUserId();
     } catch {
       return null;
     }
   }, []);
-  const currentDisplayName = get_display_name()?.trim() || 'You';
+  const currentDisplayName = authStore.getDisplayName()?.trim() || 'You';
   const canWriteChat = accessRole === 'owner' || accessRole === 'co_gm' || accessRole === 'player';
 
   const [chatMessages, setChatMessages] = useState<CampaignChatMessage[]>([]);

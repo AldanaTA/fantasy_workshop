@@ -33,7 +33,7 @@ import {
 import { BookOpen, Eye, Edit3, Plus, CircleArrowLeft,Trash2, View,} from 'lucide-react';
 import { Campaign, ContentPack, Game } from '../../api/models';
 import { contentPacksApi, invalidateContentPacksByGame } from '../../api/contentPacksApi';
-import { get_userId } from '../../api/authStorage';
+import { authStore } from '../../api/authStorage';
 import { VISIBILITY,Visibility } from '../../types/visibility';
 import { STATUS, Status } from '../../types/status';
 import { useToast } from '../ui/toastProvider';
@@ -196,7 +196,7 @@ export function ViewGamePacks({
     try {
       if (dialogMode === 'create') {
         await toastPromise(contentPacksApi.create({
-          owner_id: get_userId(),
+          owner_id: authStore.getUserId(),
           game_id: game.id,
           campaign_id: campaign?.id ?? undefined,
           pack_name: form.pack_name.trim(),

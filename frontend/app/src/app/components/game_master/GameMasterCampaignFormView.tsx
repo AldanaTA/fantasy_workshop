@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { campaignsApi } from '../../api/campaignsApi';
-import { get_userId } from '../../api/authStorage';
+import { authStore } from '../../api/authStorage';
 import type { Campaign, Game } from '../../api/models';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -89,7 +89,7 @@ export function GameMasterCampaignFormView({
       const savedCampaign = mode === 'create'
         ? await toastPromise(
           campaignsApi.create({
-            owner_user_id: get_userId(),
+            owner_user_id: authStore.getUserId(),
             game_id: form.game_id,
             name: form.name.trim(),
             description: form.description.trim() || undefined,

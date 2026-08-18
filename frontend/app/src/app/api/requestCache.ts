@@ -1,4 +1,4 @@
-import { getCurrentTokens } from './authStorage';
+import { authStore } from './authStorage';
 
 type CacheEntry<T> = {
   value: T;
@@ -18,7 +18,7 @@ const cache = new Map<string, CacheEntry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
 
 function getScopeKey() {
-  return getCurrentTokens()?.user_id ?? 'anonymous';
+  return authStore.getUserId() ?? 'anonymous';
 }
 
 function scopedKey(key: string) {

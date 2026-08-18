@@ -1,10 +1,10 @@
 import { API_CONFIG } from './apiConfig';
 import type { User } from './models';
-import { getAccessToken } from './authStorage';
+import { authStore} from './authStorage';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_USERS;
 const authHeaders = (token?: string) => {
-	const t = token ?? getAccessToken();
+	const t = token ?? authStore.getAccessToken();
 	return t ? { Authorization: `Bearer ${t}` } : undefined;
 };
 

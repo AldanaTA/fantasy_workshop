@@ -49,7 +49,7 @@ export function Login({ onLogin }: LoginProps) {
         password: loginPassword,
       });
 
-      // Store tokens in localStorage for persistence
+      // Store tokens in usestate for persistence
       authStore.setCurrent(tokens);
 
       // Getting displayname and email for the user and storing them in localStorage as well, to avoid having to fetch them on every page load. They will be used in the header to display the user's name and email.

@@ -34,7 +34,7 @@ import {
 import { BookOpen, Copy, Eye, Edit3, Link2, Plus, Trash2 } from 'lucide-react';
 import { Game, GameShareLink } from '../../api/models';
 import { gamesApi } from '../../api/gamesApi';
-import { get_userId } from '../../api/authStorage';
+import { authStore } from '../../api/authStorage';
 import {  Visibility, VISIBILITY} from '../../types/visibility';
 import { GameRulesRenderer } from '../content/GameRulesRenderer';
 import type { UUID } from '../../types/misc';
@@ -366,7 +366,7 @@ export function GameCreatorDashboard({
     try {
       if (dialogMode === 'create') {
         await toastPromise(gamesApi.create({
-          owner_user_id: get_userId(),
+          owner_user_id: authStore.getUserId(),
           game_name: form.game_name.trim(),
           game_summary: form.game_summary.trim() || undefined,
           visibility: form.visibility,
