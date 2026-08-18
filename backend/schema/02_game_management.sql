@@ -9,7 +9,9 @@ CREATE TYPE game_visibility AS ENUM (
   'public'     -- Anyone has access to view
 );
 
--- GAMES
+-- =====================================
+-- Games are the top-level entity that contains content packs, campaigns, and characters.
+--======================================
 CREATE TABLE IF NOT EXISTS games (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
