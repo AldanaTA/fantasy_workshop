@@ -75,6 +75,7 @@ CREATE INDEX IF NOT EXISTS characters_user_id_idx ON characters(user_id);
 CREATE INDEX IF NOT EXISTS characters_game_id_idx ON characters(game_id);
 
 -- CAMPAIGN CHARACTERS (character instantiated into campaign with overrides)
+-- Overrides include unique effects or changes to the character's sheet that only apply in this campaign.
 CREATE TABLE IF NOT EXISTS campaign_characters (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   campaign_id         UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -197,101 +198,42 @@ CREATE TABLE IF NOT EXISTS campaign_content_versions (
 CREATE INDEX IF NOT EXISTS campaign_content_versions_campaign_id_idx
   ON campaign_content_versions(campaign_id);
 
--- EVENT TYPE (placeholder custom type)
--- Best practice: enum ensures only known event types are stored.
--- You said you'll use custom types; you can expand this enum or replace with a domain.
-CREATE TYPE campaign_event_type AS ENUM (
-  'damage',
-  'heal',
-  'set_hp',
-  'add_condition',
-  'remove_condition',
-  'set_resource',
-  'spend_resource',
-  'gain_resource',
-  'add_item',
-  'remove_item',
-  'note',
-  'custom',
-  'unknown'
+-- ============================================================
+-- CAMPAIGN CHARACTER STATE
+--
+-- Stores the current runtime state of a character during a
+-- campaign.
+--
+-- The frontend is responsible for calculating changes to this
+-- state. The backend simply persists the latest state.
+--
+-- The frontend should periodically save this state and also
+-- save after important actions to reduce data loss if a client
+-- disconnects.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS campaign_character_states (
+    campaign_character_id UUID PRIMARY KEY
+        REFERENCES campaign_characters(id)
+        ON DELETE CASCADE,
+
+    state JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+    -- Incremented whenever the state is saved.
+    -- Useful for detecting stale updates from multiple clients.
+    version_num BIGINT NOT NULL DEFAULT 1,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT campaign_character_states_state_object_chk
+        CHECK (jsonb_typeof(state) = 'object'),
+
+    CONSTRAINT campaign_character_states_version_positive_chk
+        CHECK (version_num >= 1)
 );
 
--- CAMPAIGN EVENT LOG (append-only)
-CREATE TABLE IF NOT EXISTS campaign_event (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  campaign_id        UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-  character_id       UUID REFERENCES campaign_characters(id) ON DELETE SET NULL,
-  user_id            UUID REFERENCES users(id) ON DELETE SET NULL,
-  payload            JSONB NOT NULL DEFAULT '{}'::jsonb,
-  content_version_map JSONB NOT NULL DEFAULT '{}'::jsonb,
-  event_type         campaign_event_type NOT NULL DEFAULT 'unknown',
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  idempotency_key    TEXT NOT NULL
-);
-
--- Best practice: enforce idempotency per campaign so retries don't duplicate events.
-CREATE UNIQUE INDEX IF NOT EXISTS campaign_event_campaign_id_idempotency_key_uq
-  ON campaign_event(campaign_id, idempotency_key);
-
--- Best practice: your hottest query is "events for campaign ordered by time".
-CREATE INDEX IF NOT EXISTS campaign_event_campaign_id_created_at_idx
-  ON campaign_event(campaign_id, created_at);
-
--- Best practice: when hydrating a character, you often query events by character within campaign.
-CREATE INDEX IF NOT EXISTS campaign_event_campaign_character_created_at_idx
-  ON campaign_event(campaign_id, character_id, created_at);
-
--- SNAPSHOTS (history)
-CREATE TABLE IF NOT EXISTS campaign_character_state_snapshots (
-  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  campaign_id           UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-  character_id          UUID NOT NULL REFERENCES campaign_characters(id) ON DELETE CASCADE,
-  latest_event_id       UUID NOT NULL REFERENCES campaign_event(id) ON DELETE RESTRICT,
-  last_event_timestamp  TIMESTAMPTZ NOT NULL,
-  state                JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- Best practice: load latest snapshot fast for a campaign+character.
-CREATE INDEX IF NOT EXISTS campaign_character_snapshots_latest_idx
-  ON campaign_character_state_snapshots(campaign_id, character_id, last_event_timestamp DESC);
-
--- LATEST SNAPSHOT POINTER
-CREATE TABLE IF NOT EXISTS campaign_character_latest_snapshots (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  character_id      UUID NOT NULL REFERENCES campaign_characters(id) ON DELETE CASCADE,
-  latest_snapshot_id UUID NOT NULL REFERENCES campaign_character_state_snapshots(id) ON DELETE CASCADE,
-  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  -- Best practice: one pointer row per character.
-  CONSTRAINT campaign_character_latest_snapshots_character_unique UNIQUE (character_id)
-);
+CREATE INDEX IF NOT EXISTS campaign_character_states_updated_at_idx
+    ON campaign_character_states(updated_at DESC);
 
 COMMIT;
-
-CREATE OR REPLACE FUNCTION prune_old_snapshots()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- keep only the latest 5 snapshots per campaign+character
-  DELETE FROM campaign_character_state_snapshots s
-  WHERE s.campaign_id = NEW.campaign_id
-    AND s.character_id = NEW.character_id
-    AND s.id NOT IN (
-      SELECT id
-      FROM campaign_character_state_snapshots
-      WHERE campaign_id = NEW.campaign_id
-        AND character_id = NEW.character_id
-      ORDER BY last_event_timestamp DESC
-      LIMIT 5
-    );
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_prune_old_snapshots ON campaign_character_state_snapshots;
-
-CREATE TRIGGER trg_prune_old_snapshots
-AFTER INSERT ON campaign_character_state_snapshots
-FOR EACH ROW
-EXECUTE FUNCTION prune_old_snapshots();

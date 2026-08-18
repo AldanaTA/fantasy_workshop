@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TYPE invite_target_type AS ENUM (
   'campaign',
   'game'
@@ -70,3 +72,5 @@ CREATE INDEX IF NOT EXISTS game_share_links_token_idx ON game_share_links(token)
 CREATE INDEX IF NOT EXISTS game_share_links_active_token_idx
   ON game_share_links(token)
   WHERE revoked_at IS NULL;
+
+COMMIT;
