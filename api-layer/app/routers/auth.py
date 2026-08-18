@@ -27,9 +27,6 @@ from app.helpers_rate_limit import rate_limit_or_429
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-
-
-
 def utcnow():
     return datetime.now(timezone.utc)
 
