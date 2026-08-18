@@ -9,7 +9,7 @@ import { Dices } from 'lucide-react';
 import { authApi } from '../api/authApi';
 import type { TokenPair } from '../api/models';
 import { usersApi } from '../api/usersApi';
-import { setCurrent, set_display_name, set_email } from '../api/authStorage';
+import { authStore } from '../api/authStorage';
 
 interface LoginProps {
   onLogin: (token:TokenPair) => void;
@@ -50,12 +50,12 @@ export function Login({ onLogin }: LoginProps) {
       });
 
       // Store tokens in localStorage for persistence
-      setCurrent(tokens);
+      authStore.setCurrent(tokens);
 
       // Getting displayname and email for the user and storing them in localStorage as well, to avoid having to fetch them on every page load. They will be used in the header to display the user's name and email.
       const user = await usersApi.get(tokens.user_id,tokens.access_token)
-      set_display_name(user.display_name);
-      set_email(user.email);
+      authStore.setDisplayName(user.display_name);
+      authStore.setEmail(user.email);
 
       const destination = getPostAuthDestination();
       navigate(destination, { replace: true });
@@ -80,12 +80,12 @@ export function Login({ onLogin }: LoginProps) {
       });
 
       // Store tokens in localStorage for persistence
-      setCurrent(tokens);
+      authStore.setCurrent(tokens);
 
        // Getting displayname and email for the user and storing them in localStorage as well, to avoid having to fetch them on every page load. They will be used in the header to display the user's name and email.
        const user = await usersApi.get(tokens.user_id,tokens.access_token)
-      set_display_name(user.display_name);
-      set_email(user.email);
+      authStore.setDisplayName(user.display_name);
+      authStore.setEmail(user.email);
 
       const destination = getPostAuthDestination();
       navigate(destination, { replace: true });

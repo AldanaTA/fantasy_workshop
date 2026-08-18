@@ -11,7 +11,7 @@ import { GameMasterDashboard } from './game_master/GameMasterDashboard';
 import type { LibraryGame } from '../api/models';
 import { TokenPair } from '../api/models';
 import { authApi } from '../api/authApi';
-import { get_display_name } from '../api/authStorage';
+import { authStore } from '../api/authStorage';
 import { clearRequestCache } from '../api/requestCache';
 import { clearResumeState, getSavedMainSection, setSavedMainSection } from '../api/appResumeStorage';
 
@@ -59,7 +59,7 @@ export function MainApp({ tokens, onLogout, initialSection = 'creator' }: MainAp
   }, [currentSection]);
 
   const handleLogout = async () => {
-    await authApi.logout({ refresh_token: tokens.refresh_token });
+    await authApi.logout();
     clearRequestCache();
     clearResumeState();
     onLogout();
@@ -99,7 +99,7 @@ export function MainApp({ tokens, onLogout, initialSection = 'creator' }: MainAp
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold">Fantasy Workshop</h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Welcome, {get_display_name()}! You are here: <span className="font-medium">{sectionLabel[currentSection]}</span>.
+                Welcome, {authStore.getDisplayName()}! You are here: <span className="font-medium">{sectionLabel[currentSection]}</span>.
               </p>
             </div>
             <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">

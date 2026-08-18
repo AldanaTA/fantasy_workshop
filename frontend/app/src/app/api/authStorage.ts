@@ -1,81 +1,56 @@
 import type { TokenPair } from './models';
 
-export function setCurrent(tokens: TokenPair) {
-  localStorage.setItem('currentTokens', JSON.stringify(tokens));
-}
-export function set_display_name(name: string) {
-  localStorage.setItem('display_name', name);
-}
-export function set_email(email: string) {
-  localStorage.setItem('email', email);
-}
+class AuthStore {
+  private accessToken: string | null = null;
+  private userId: string | null = null;
 
-export function clearCurrent() {
-  localStorage.removeItem('currentTokens');
-  localStorage.removeItem('display_name');
-  localStorage.removeItem('email');
-}
+  private readonly DISPLAY_NAME_KEY = 'display_name';
+  private readonly EMAIL_KEY = 'email';
 
-export function getAccessToken(): string | null {
+  public setCurrent(tokens: TokenPair): void {
+    this.accessToken = tokens.access_token;
+    this.userId = tokens.user_id;
+  }
 
-  const stored = localStorage.getItem('currentTokens');
-  if (!stored) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(stored) as TokenPair;
-    return parsed.access_token ?? null;
-  } catch {
-    return null;
-  }
-}
+  public clearCurrent(): void {
+    this.accessToken = null;
+    this.userId = null;
 
-export function getCurrentTokens(): TokenPair | null {
-  const stored = localStorage.getItem('currentTokens');
-  if (!stored) {
-    return null;
+    localStorage.removeItem(this.DISPLAY_NAME_KEY);
+    localStorage.removeItem(this.EMAIL_KEY);
   }
-  try {
-    const parsed = JSON.parse(stored) as TokenPair;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
-export function get_userId(): string {
-  const stored = localStorage.getItem('currentTokens');
-  if (!stored) {
-    throw new Error('No current tokens stored.');
+  public getAccessToken(): string | null {
+    return this.accessToken;
   }
-  try {
-    const parsed = JSON.parse(stored) as TokenPair;
-    if (!parsed.user_id) {
-      throw new Error('User ID missing from stored tokens.');
+
+  public getUserId(): string {
+    if (!this.userId) {
+      throw new Error('No current user ID available.');
     }
-    return parsed.user_id;
-  } catch {
-    throw new Error('Unable to parse current tokens.');
+
+    return this.userId;
+  }
+
+  public setDisplayName(name: string): void {
+    localStorage.setItem(this.DISPLAY_NAME_KEY, name);
+  }
+
+  public getDisplayName(): string | null {
+    return localStorage.getItem(this.DISPLAY_NAME_KEY);
+  }
+
+  public setEmail(email: string): void {
+    localStorage.setItem(this.EMAIL_KEY, email);
+  }
+
+  public getEmail(): string | null {
+    return localStorage.getItem(this.EMAIL_KEY);
+  }
+
+  public isAuthenticated(): boolean {
+    return this.accessToken !== null;
   }
 }
 
-export function get_display_name() {
-  return localStorage.getItem('display_name');
-}
-
-export function get_email() {
-  return localStorage.getItem('email');
-}
-
-export function get_refresh_token(): string | null {
-  const stored = localStorage.getItem('currentTokens');
-  if (!stored) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(stored) as TokenPair;
-    return parsed.refresh_token ?? null;
-  } catch {
-    return null;
-  }
-}
+export const authStore = new AuthStore();
