@@ -31,3 +31,11 @@ echo ""
 echo "======================================"
 echo " All services started successfully"
 echo "======================================"
+
+
+./dev/tools.sh up all
+
+echo ""
+echo "======================================"
+echo " All Tools services started successfully"
+echo "======================================"
