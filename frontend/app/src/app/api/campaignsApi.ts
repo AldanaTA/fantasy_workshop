@@ -13,9 +13,6 @@ import type {
   CampaignAllowedPack,
   CampaignContentVersion,
   CampaignContentVersionUpsert,
-  CampaignEvent,
-  CampaignCharacterStateSnapshot,
-  CampaignCharacterLatestSnapshot,
 } from './models';
 import { authStore } from './authStorage';
 import { fetchWithCache, invalidateCacheByPrefix } from './requestCache';
@@ -39,7 +36,6 @@ const campaignsCacheKeys = {
   noteRevisions: (campaignId: string, noteId: string) => `campaigns:${campaignId}:notes:${noteId}:revisions`,
   allowedPacks: (campaignId: string) => `campaigns:${campaignId}:allowed-packs`,
   pins: (campaignId: string) => `campaigns:${campaignId}:pins`,
-  snapshot: (campaignId: string, snapshotId: string) => `campaigns:${campaignId}:snapshots:${snapshotId}`,
 };
 
 function invalidateCampaignLists() {
@@ -54,7 +50,6 @@ function invalidateCampaignDetails(campaignId: string) {
   invalidateCacheByPrefix(`campaigns:${campaignId}:notes`);
   invalidateCacheByPrefix(`campaigns:${campaignId}:allowed-packs`);
   invalidateCacheByPrefix(`campaigns:${campaignId}:pins`);
-  invalidateCacheByPrefix(`campaigns:${campaignId}:snapshots`);
 }
 
 function invalidateCampaignNotes(campaignId: string, noteId?: string) {
@@ -276,25 +271,4 @@ export const campaignsApi = {
     request<void>(`/${campaignId}/pins/${contentId}`, { method: 'DELETE', headers: authHeaders(token) }).then(() => {
       invalidateCacheByPrefix(campaignsCacheKeys.pins(campaignId));
     }),
-
-  // events
-  appendEvent: (campaignId: string, payload: Partial<CampaignEvent>, token?: string) =>
-    request<CampaignEvent>(`/${campaignId}/events`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }),
-  listEvents: (campaignId: string, limit = 50, offset = 0, token?: string) =>
-    request<CampaignEvent[]>(`/${campaignId}/events?limit=${limit}&offset=${offset}`, { method: 'GET', headers: authHeaders(token) }),
-
-  // snapshots
-  createSnapshot: (campaignId: string, payload: Partial<CampaignCharacterStateSnapshot>, token?: string) =>
-    request<CampaignCharacterStateSnapshot>(`/${campaignId}/snapshots`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token) }).then((snapshot) => {
-      invalidateCacheByPrefix(`campaigns:${campaignId}:snapshots`);
-      return snapshot;
-    }),
-  getSnapshot: (campaignId: string, snapshotId: string, token?: string) =>
-    fetchWithCache(
-      campaignsCacheKeys.snapshot(campaignId, snapshotId),
-      () => request<CampaignCharacterStateSnapshot>(`/${campaignId}/snapshots/${snapshotId}`, { method: 'GET', headers: authHeaders(token) }),
-      { ttlMs: CAMPAIGNS_CACHE_TTL_MS },
-    ),
-  upsertLatestSnapshot: (campaignId: string, id: string, payload: Partial<CampaignCharacterLatestSnapshot>, token?: string) =>
-    request<CampaignCharacterLatestSnapshot>(`/${campaignId}/latest-snapshots/${id}`, { method: 'PUT', body: JSON.stringify(payload), headers: authHeaders(token) }),
 };

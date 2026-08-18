@@ -2,19 +2,14 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   ArrowDown,
   Dices,
-  Loader2,
   Radio,
-  RefreshCw,
   Send,
-  ShieldAlert,
-  Sparkles,
-  WandSparkles,
 } from 'lucide-react';
 
 import { campaignsApi } from '../../api/campaignsApi';
 import { authStore } from '../../api/authStorage';
 import { chatApi } from '../../api/chatApi';
-import type { Campaign, CampaignChatMessage, CampaignEvent, UserCampaignRole } from '../../api/models';
+import type { Campaign, CampaignChatMessage, UserCampaignRole } from '../../api/models';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -39,28 +34,18 @@ type CampaignChatPanelProps = {
 };
 
 type TimelineItem =
-  | {
-      id: string;
-      createdAt: string;
-      kind: 'chat' | 'whisper' | 'roll';
-      messageId: string;
-      userId: string;
-      message: string;
-      whisperTo: string[];
-      authorLabel: string;
-      audienceLabel: string | null;
-      rollSummary?: string | null;
-    }
-  | {
-      id: string;
-      createdAt: string;
-      kind: 'event' | 'action';
-      eventId: string;
-      eventType: string;
-      actorLabel: string;
-      summary: string;
-      details: string[];
-    };
+  {
+    id: string;
+    createdAt: string;
+    kind: 'chat' | 'whisper' | 'roll';
+    messageId: string;
+    userId: string;
+    message: string;
+    whisperTo: string[];
+    authorLabel: string;
+    audienceLabel: string | null;
+    rollSummary?: string | null;
+  };
 
 type ParticipantOption = {
   userId: string;
@@ -69,24 +54,7 @@ type ParticipantOption = {
 };
 
 const CHAT_PAGE_SIZE = 30;
-const EVENT_PAGE_SIZE = 30;
-const EVENT_POLL_PAGE_SIZE = 25;
-const EVENT_POLL_MAX_PAGES = 3;
-const EVENT_POLL_INTERVAL_MS = 15000;
 const RECONNECT_DELAY_MS = 2000;
-
-const ACTION_EVENT_TYPES = new Set([
-  'damage',
-  'heal',
-  'set_hp',
-  'add_condition',
-  'remove_condition',
-  'set_resource',
-  'spend_resource',
-  'gain_resource',
-  'add_item',
-  'remove_item',
-]);
 
 export function CampaignChatPanel({ campaign, accessRole, className }: CampaignChatPanelProps) {
   const { toast } = useToast();
@@ -101,14 +69,11 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
   const canWriteChat = accessRole === 'owner' || accessRole === 'co_gm' || accessRole === 'player';
 
   const [chatMessages, setChatMessages] = useState<CampaignChatMessage[]>([]);
-  const [events, setEvents] = useState<CampaignEvent[]>([]);
   const [participants, setParticipants] = useState<ParticipantOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [isRefreshingEvents, setIsRefreshingEvents] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasMoreChat, setHasMoreChat] = useState(true);
-  const [hasMoreEvents, setHasMoreEvents] = useState(true);
   const [chatCursor, setChatCursor] = useState<{ beforeCreatedAt: string | null; beforeId: string | null }>({
     beforeCreatedAt: null,
     beforeId: null,
@@ -154,16 +119,14 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
   }, [currentUserId, participants]);
 
   const timelineItems = useMemo(() => {
-    const items: TimelineItem[] = [
-      ...chatMessages.map((message) => normalizeMessage(message, {
+    return chatMessages
+      .map((message) => normalizeMessage(message, {
         currentUserId,
         currentDisplayName,
         participants: participantMap,
-      })),
-      ...events.map((event) => normalizeEvent(event, participantMap)),
-    ];
-    return items.sort(sortTimelineItemsAsc);
-  }, [chatMessages, currentDisplayName, currentUserId, events, participantMap]);
+      }))
+      .sort(sortTimelineItemsAsc);
+  }, [chatMessages, currentDisplayName, currentUserId, participantMap]);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,28 +136,24 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
       setLoadError(null);
 
       try {
-        const [chatPage, latestEvents, roleRows] = await Promise.all([
+        const [chatPage, roleRows] = await Promise.all([
           chatApi.listMessagesPage(campaign.id, CHAT_PAGE_SIZE),
-          campaignsApi.listEvents(campaign.id, EVENT_PAGE_SIZE, 0),
           campaignsApi.listRoles(campaign.id).catch(() => [] as UserCampaignRole[]),
         ]);
         if (cancelled) return;
 
         setChatMessages(mergeById([], chatPage.items, (item) => item.id, compareByCreatedAtAsc));
-        setEvents(mergeById([], latestEvents, (item) => item.id, compareByCreatedAtAsc));
         setChatCursor({
           beforeCreatedAt: chatPage.next_before_created_at ?? null,
           beforeId: chatPage.next_before_id ?? null,
         });
         setHasMoreChat(chatPage.items.length === CHAT_PAGE_SIZE);
-        setHasMoreEvents(latestEvents.length === EVENT_PAGE_SIZE);
         setParticipants(buildParticipants(campaign, roleRows, currentUserId, currentDisplayName, accessRole));
       } catch (err) {
         if (cancelled) return;
         setChatMessages([]);
-        setEvents([]);
         setParticipants(buildParticipants(campaign, [], currentUserId, currentDisplayName, accessRole));
-        setLoadError((err as Error)?.message || 'Unable to load campaign timeline.');
+        setLoadError((err as Error)?.message || 'Unable to load campaign chat.');
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -265,41 +224,6 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
   }, [campaign.id]);
 
   useEffect(() => {
-    if (isLoading || loadError) return undefined;
-
-    let cancelled = false;
-
-    const poll = async () => {
-      if (cancelled) return;
-      setIsRefreshingEvents(true);
-      try {
-        const nextEvents = await pollNewestEvents(campaign.id, events);
-        if (cancelled || !nextEvents.length) return;
-        const shouldStickToBottom = shouldAutoScrollRef.current || isNearBottom(scrollRootRef.current);
-        setEvents((prev) => mergeById(prev, nextEvents, (item) => item.id, compareByCreatedAtAsc));
-        if (shouldStickToBottom) {
-          queueScrollToBottom(scrollRootRef.current);
-        }
-      } catch {
-        // Quiet polling failure: the initial load already surfaced any blocking error.
-      } finally {
-        if (!cancelled) {
-          setIsRefreshingEvents(false);
-        }
-      }
-    };
-
-    const intervalId = window.setInterval(() => {
-      void poll();
-    }, EVENT_POLL_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [campaign.id, events, isLoading, loadError]);
-
-  useEffect(() => {
     if (!isLoading && !didInitialScrollRef.current && timelineItems.length) {
       didInitialScrollRef.current = true;
       queueScrollToBottom(scrollRootRef.current);
@@ -322,26 +246,19 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
   }, [isLoading, loadError, timelineItems.length]);
 
   const handleLoadOlder = async () => {
-    if (isLoadingOlder || (!hasMoreChat && !hasMoreEvents)) return;
+    if (isLoadingOlder || !hasMoreChat) return;
 
     const viewport = getScrollViewport(scrollRootRef.current);
     const previousScrollHeight = viewport?.scrollHeight ?? 0;
 
     setIsLoadingOlder(true);
     try {
-      const [chatPage, olderEvents] = await Promise.all([
-        hasMoreChat
-          ? chatApi.listMessagesPage(
-              campaign.id,
-              CHAT_PAGE_SIZE,
-              chatCursor.beforeCreatedAt,
-              chatCursor.beforeId,
-            )
-          : Promise.resolve(null),
-        hasMoreEvents
-          ? campaignsApi.listEvents(campaign.id, EVENT_PAGE_SIZE, events.length)
-          : Promise.resolve([] as CampaignEvent[]),
-      ]);
+      const chatPage = await chatApi.listMessagesPage(
+        campaign.id,
+        CHAT_PAGE_SIZE,
+        chatCursor.beforeCreatedAt,
+        chatCursor.beforeId,
+      );
 
       if (chatPage) {
         setChatMessages((prev) => mergeById(prev, chatPage.items, (item) => item.id, compareByCreatedAtAsc));
@@ -351,11 +268,6 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
         });
         setHasMoreChat(chatPage.items.length === CHAT_PAGE_SIZE);
       }
-
-      if (olderEvents.length) {
-        setEvents((prev) => mergeById(prev, olderEvents, (item) => item.id, compareByCreatedAtAsc));
-      }
-      setHasMoreEvents(olderEvents.length === EVENT_PAGE_SIZE);
 
       window.requestAnimationFrame(() => {
         const nextViewport = getScrollViewport(scrollRootRef.current);
@@ -480,17 +392,13 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
         <div className="min-w-0">
           <p className="text-sm font-semibold">Campaign Chat</p>
           <p className="text-xs text-muted-foreground">
-            Shared log for chat, whispers, rolls, and campaign events.
+            Shared log for chat, whispers, and rolls.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant={socketStatus === 'live' ? 'default' : 'secondary'}>
             <Radio className="h-3.5 w-3.5" />
             {liveBadgeLabel}
-          </Badge>
-          <Badge variant="outline">
-            <RefreshCw className={cn('h-3.5 w-3.5', isRefreshingEvents ? 'animate-spin' : '')} />
-            Event polling
           </Badge>
           <Badge variant={canWriteChat ? 'secondary' : 'outline'}>
             {canWriteChat ? 'Write Enabled' : 'Read Only'}
@@ -504,7 +412,7 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
             <div className="space-y-2 px-3 py-3 sm:px-4">
               {timelineItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                  No campaign chat or event history yet.
+                  No campaign chat history yet.
                 </div>
               ) : (
                 timelineItems.map((item) => (
@@ -607,47 +515,25 @@ export function CampaignChatPanel({ campaign, accessRole, className }: CampaignC
 }
 
 function TimelineRow({ item }: { item: TimelineItem }) {
-  if (item.kind === 'chat' || item.kind === 'whisper' || item.kind === 'roll') {
-    const badgeLabel = item.kind === 'whisper' ? 'Whisper' : item.kind === 'roll' ? 'Roll' : 'Chat';
-
-    return (
-      <article
-        className={cn(
-          'rounded-lg px-2.5 py-2 text-sm',
-          item.kind === 'whisper' && 'bg-amber-500/10',
-          item.kind === 'roll' && 'bg-primary/10',
-        )}
-      >
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-semibold text-foreground">{item.authorLabel}</span>
-          <Badge variant={item.kind === 'chat' ? 'outline' : 'secondary'}>{badgeLabel}</Badge>
-          {item.audienceLabel ? <span className="text-xs text-muted-foreground">{item.audienceLabel}</span> : null}
-          <span className="text-xs text-muted-foreground">{formatTimelineTime(item.createdAt)}</span>
-        </div>
-        <p className="mt-1 whitespace-pre-wrap break-words leading-6 text-foreground/90">
-          {item.rollSummary ?? item.message}
-        </p>
-      </article>
-    );
-  }
-
-  const badgeLabel = item.kind === 'action' ? 'Action' : 'Event';
+  const badgeLabel = item.kind === 'whisper' ? 'Whisper' : item.kind === 'roll' ? 'Roll' : 'Chat';
 
   return (
-    <article className="rounded-lg bg-muted/40 px-2.5 py-2 text-sm">
+    <article
+      className={cn(
+        'rounded-lg px-2.5 py-2 text-sm',
+        item.kind === 'whisper' && 'bg-amber-500/10',
+        item.kind === 'roll' && 'bg-primary/10',
+      )}
+    >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="font-semibold text-foreground">{item.actorLabel}</span>
-        <Badge variant={item.kind === 'action' ? 'default' : 'outline'}>
-          {item.kind === 'action' ? <WandSparkles className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-          {badgeLabel}
-        </Badge>
-        <Badge variant="secondary">{item.eventType}</Badge>
+        <span className="font-semibold text-foreground">{item.authorLabel}</span>
+        <Badge variant={item.kind === 'chat' ? 'outline' : 'secondary'}>{badgeLabel}</Badge>
+        {item.audienceLabel ? <span className="text-xs text-muted-foreground">{item.audienceLabel}</span> : null}
         <span className="text-xs text-muted-foreground">{formatTimelineTime(item.createdAt)}</span>
       </div>
-      <p className="mt-1 leading-6">{item.summary}</p>
-      {item.details.length ? (
-        <p className="mt-1 text-xs text-muted-foreground">{item.details.join(' • ')}</p>
-      ) : null}
+      <p className="mt-1 whitespace-pre-wrap break-words leading-6 text-foreground/90">
+        {item.rollSummary ?? item.message}
+      </p>
     </article>
   );
 }
@@ -678,28 +564,6 @@ function normalizeMessage(
     authorLabel: options.currentUserId === message.user_id ? `${author} (You)` : author,
     audienceLabel,
     rollSummary: parsedRoll?.summary ?? null,
-  };
-}
-
-function normalizeEvent(event: CampaignEvent, participants: Map<string, ParticipantOption>): TimelineItem {
-  const eventKind = classifyEventKind(event.event_type);
-  const actorLabel = event.user_id
-    ? getParticipantLabel(event.user_id, participants, null, 'You')
-    : event.character_id
-      ? `Character ${shortId(event.character_id)}`
-      : 'Campaign System';
-  const summary = summarizeEvent(event);
-  const details = buildEventDetails(event);
-
-  return {
-    id: `event:${event.id}`,
-    createdAt: event.created_at,
-    kind: eventKind,
-    eventId: event.id,
-    eventType: event.event_type,
-    actorLabel,
-    summary,
-    details,
   };
 }
 
@@ -767,72 +631,6 @@ function evaluateDiceExpression(expression: string):
   };
 }
 
-function summarizeEvent(event: CampaignEvent): string {
-  const payload = event.payload ?? {};
-  const amount = typeof payload.amount === 'number' || typeof payload.amount === 'string'
-    ? String(payload.amount)
-    : null;
-  const resource = pickFirstString(payload, ['resource', 'resource_name', 'field', 'field_name']);
-  const condition = pickFirstString(payload, ['condition', 'condition_name']);
-  const target = pickFirstString(payload, ['target', 'target_name']);
-  const text = pickFirstString(payload, ['summary', 'message', 'text', 'description', 'note']);
-
-  switch (event.event_type) {
-    case 'damage':
-      return amount ? `Damage recorded: ${amount}` : 'Damage recorded';
-    case 'heal':
-      return amount ? `Healing recorded: ${amount}` : 'Healing recorded';
-    case 'set_hp':
-      return amount ? `Hit points set to ${amount}` : 'Hit points updated';
-    case 'add_condition':
-      return condition ? `Condition added: ${condition}` : 'Condition added';
-    case 'remove_condition':
-      return condition ? `Condition removed: ${condition}` : 'Condition removed';
-    case 'set_resource':
-      return resource && amount ? `${resource} set to ${amount}` : 'Resource updated';
-    case 'spend_resource':
-      return resource && amount ? `${amount} ${resource} spent` : 'Resource spent';
-    case 'gain_resource':
-      return resource && amount ? `${amount} ${resource} gained` : 'Resource gained';
-    case 'add_item':
-      return target ? `Item added: ${target}` : 'Item added';
-    case 'remove_item':
-      return target ? `Item removed: ${target}` : 'Item removed';
-    case 'note':
-      return text || 'Campaign note event';
-    default:
-      return text || humanizeEventType(event.event_type);
-  }
-}
-
-function buildEventDetails(event: CampaignEvent): string[] {
-  const payload = event.payload ?? {};
-  const details: string[] = [];
-
-  if (event.character_id) {
-    details.push(`Character ${shortId(event.character_id)}`);
-  }
-
-  for (const [label, value] of [
-    ['Amount', payload.amount],
-    ['Target', payload.target ?? payload.target_name],
-    ['Resource', payload.resource ?? payload.resource_name],
-    ['Condition', payload.condition ?? payload.condition_name],
-  ] as const) {
-    if (value === undefined || value === null || value === '') continue;
-    details.push(`${label}: ${String(value)}`);
-  }
-
-  if (!details.length) {
-    const payloadKeys = Object.keys(payload).slice(0, 3);
-    for (const key of payloadKeys) {
-      details.push(`${humanizeEventType(key)}: ${formatPayloadValue(payload[key])}`);
-    }
-  }
-
-  return details;
-}
-
 function buildParticipants(
   campaign: Campaign,
   roles: UserCampaignRole[],
@@ -879,11 +677,6 @@ function getParticipantLabel(
   return participants.get(userId)?.label ?? `User ${shortId(userId)}`;
 }
 
-function classifyEventKind(eventType: string): Extract<TimelineItem, { kind: 'event' | 'action' }>['kind'] {
-  if (ACTION_EVENT_TYPES.has(eventType)) return 'action';
-  return 'event';
-}
-
 function compareByCreatedAtAsc<T extends { created_at: string; id: string }>(a: T, b: T) {
   const timeDiff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   if (timeDiff !== 0) return timeDiff;
@@ -910,32 +703,6 @@ function mergeById<T>(
     byId.set(getId(item), item);
   }
   return [...byId.values()].sort(sortItems);
-}
-
-async function pollNewestEvents(campaignId: string, knownEvents: CampaignEvent[]) {
-  const knownIds = new Set(knownEvents.map((event) => event.id));
-  const nextEvents: CampaignEvent[] = [];
-
-  for (let page = 0; page < EVENT_POLL_MAX_PAGES; page += 1) {
-    const offset = page * EVENT_POLL_PAGE_SIZE;
-    const rows = await campaignsApi.listEvents(campaignId, EVENT_POLL_PAGE_SIZE, offset);
-    if (!rows.length) break;
-
-    let encounteredKnown = false;
-    for (const row of rows) {
-      if (knownIds.has(row.id)) {
-        encounteredKnown = true;
-        break;
-      }
-      nextEvents.push(row);
-    }
-
-    if (encounteredKnown || rows.length < EVENT_POLL_PAGE_SIZE) {
-      break;
-    }
-  }
-
-  return nextEvents;
 }
 
 function parseChatSocketPayload(data: string): CampaignChatMessage | null {
@@ -991,23 +758,4 @@ function formatTimelineTime(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
-}
-
-function pickFirstString(record: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-}
-
-function formatPayloadValue(value: unknown) {
-  if (value === null || value === undefined) return 'None';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? '' : 's'}`;
-  if (typeof value === 'object') return 'Object';
-  return String(value);
 }

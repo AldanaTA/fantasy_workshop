@@ -75,7 +75,7 @@ export function CampaignSessionsPage({ role }: CampaignSessionsPageProps) {
           {role === 'gm' ? 'Campaign Chat' : 'Your Campaign Chat'}
         </h2>
         <p className="mt-1 break-words text-sm text-muted-foreground">
-          Open a campaign to read the shared timeline, chat with the table, and see campaign events in one place.
+          Open a campaign to read the shared timeline and chat with the table in one place.
         </p>
       </div>
 
@@ -104,7 +104,7 @@ export function CampaignSessionsPage({ role }: CampaignSessionsPageProps) {
             <Users className="h-4 w-4" />
             <AlertTitle>Campaign chat stays persistent</AlertTitle>
             <AlertDescription>
-              Chat, whispers, rolls, and campaign events all stay attached to the campaign itself.
+              Chat, whispers, and rolls all stay attached to the campaign itself.
             </AlertDescription>
           </Alert>
 

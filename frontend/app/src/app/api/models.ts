@@ -103,10 +103,12 @@ export interface ContentCategory {
 export interface Content {
 	id: UUID;
 	pack_id: UUID;
+	category_id: UUID;
 	created_by_user_id: UUID;
 	source_authority: string;
 	name: string;
 	summary?: string | null;
+	tags?: string[];
 	created_at: DateTime;
 	updated_at: DateTime;
 }
@@ -295,33 +297,4 @@ export interface CampaignContentVersionUpsert {
 	campaign_id: UUID;
 	content_id: UUID;
 	pinned_version_num: number;
-}
-
-export interface CampaignEvent {
-	id: UUID;
-	campaign_id: UUID;
-	character_id?: UUID | null;
-	user_id?: UUID | null;
-	payload: JSONDict;
-	content_version_map: JSONDict;
-	event_type: string;
-	created_at: DateTime;
-	idempotency_key: string;
-}
-
-export interface CampaignCharacterStateSnapshot {
-	id: UUID;
-	campaign_id: UUID;
-	character_id: UUID;
-	latest_event_id: UUID;
-	last_event_timestamp: DateTime;
-	state: JSONDict;
-	created_at: DateTime;
-}
-
-export interface CampaignCharacterLatestSnapshot {
-	id: UUID;
-	character_id: UUID;
-	latest_snapshot_id: UUID;
-	updated_at: DateTime;
 }
