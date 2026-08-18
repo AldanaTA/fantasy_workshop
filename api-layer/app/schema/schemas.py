@@ -4,6 +4,8 @@ from uuid import UUID
 from datetime import datetime
 from app.schema.campaign_note_body import default_campaign_note_body, validate_campaign_note_body_shape
 
+TTRPG_CONTENT_SCHEMA_VERSION = "ttrpg-content-v1"
+
 class IdOut(BaseModel):
     id: UUID
 
@@ -104,6 +106,7 @@ class ContentPackOut(IdOut):
 class ContentCategoryCreate(BaseModel):
     pack_id: UUID
     name: str = Field(min_length=1, max_length=200)
+    schema_version: str = Field(default=TTRPG_CONTENT_SCHEMA_VERSION, min_length=1, max_length=200)
     sort_key: Optional[int] = None
 
 class ContentCategoryOrderUpdate(BaseModel):
@@ -112,6 +115,7 @@ class ContentCategoryOrderUpdate(BaseModel):
 class ContentCategoryOut(IdOut):
     pack_id: UUID
     name: str
+    schema_version: str
     sort_key: int
     created_at: datetime
     updated_at: datetime
@@ -122,30 +126,20 @@ class ContentCreate(BaseModel):
     category_id: UUID
     name: str = Field(min_length=1, max_length=200)
     summary: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
 
 class ContentOut(IdOut):
     pack_id: UUID
+    category_id: UUID
     created_by_user_id: UUID
     source_authority: str
     name: str
     summary: Optional[str]
+    tags: list[str]
     created_at: datetime
     updated_at: datetime
 
-class ContentCategoryMembershipCreate(BaseModel):
-    pack_id: UUID
-    category_id: UUID
-    content_id: UUID
-
-class ContentCategoryMembershipOut(BaseModel):
-    pack_id: UUID
-    category_id: UUID
-    content_id: UUID
-    created_at: datetime
-
 # Content versions
-TTRPG_CONTENT_SCHEMA_VERSION = "ttrpg-content-v1"
-
 def default_content_fields() -> dict[str, Any]:
     return {
         "schema_version": TTRPG_CONTENT_SCHEMA_VERSION,
@@ -379,51 +373,6 @@ class CampaignContentVersionOut(BaseModel):
     content_id: UUID
     pinned_version_num: int
     pinned_at: datetime
-
-# Campaign events
-class CampaignEventCreate(BaseModel):
-    campaign_id: UUID
-    character_id: Optional[UUID] = None
-    user_id: Optional[UUID] = None
-    payload: dict = Field(default_factory=dict)
-    content_version_map: dict = Field(default_factory=dict)
-    event_type: str = Field(min_length=1, max_length=100)
-    idempotency_key: str = Field(min_length=8, max_length=200)
-
-class CampaignEventOut(IdOut):
-    campaign_id: UUID
-    character_id: Optional[UUID]
-    user_id: Optional[UUID]
-    payload: dict
-    content_version_map: dict
-    event_type: str
-    idempotency_key: str
-    created_at: datetime
-
-# Snapshots
-class CampaignCharacterStateSnapshotCreate(BaseModel):
-    campaign_id: UUID
-    character_id: UUID
-    latest_event_id: UUID
-    last_event_timestamp: datetime
-    state: dict = Field(default_factory=dict)
-
-class CampaignCharacterStateSnapshotOut(IdOut):
-    campaign_id: UUID
-    character_id: UUID
-    latest_event_id: UUID
-    last_event_timestamp: datetime
-    state: dict
-    created_at: datetime
-
-class CampaignCharacterLatestSnapshotCreate(BaseModel):
-    character_id: UUID
-    latest_snapshot_id: UUID
-
-class CampaignCharacterLatestSnapshotOut(IdOut):
-    character_id: UUID
-    latest_snapshot_id: UUID
-    updated_at: datetime
 
 # Auth
 class AuthUser(BaseModel):

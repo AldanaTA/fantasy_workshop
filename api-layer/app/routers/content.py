@@ -1,76 +1,89 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, func, select
-from uuid import UUID
 from redis.asyncio import Redis
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
-from app.schema.db import get_db, get_redis
 from app.conf import settings
-from app.helpers import require_user, new_id
+from app.helpers import new_id, require_user
 from app.helpers_cache import (
-    cache_get_json, cache_set_json, 
-    cache_get_or_set_json, cache_index_add, cache_index_invalidate)
-
+    cache_get_json,
+    cache_get_or_set_json,
+    cache_index_add,
+    cache_index_invalidate,
+    cache_set_json,
+)
+from app.schema.db import get_db, get_redis
 from app.schema.models import (
-    ContentAuthority,
     Content,
     ContentActiveVersion,
+    ContentAuthority,
     ContentCategory,
-    ContentCategoryMembership,
     ContentPack,
     ContentPackPermission,
     ContentVersion,
     Game,
     UserGameRole,
 )
-
 from app.schema.schemas import (
-    ContentCategoryMembershipCreate,
-    ContentCategoryMembershipOut,
-    ContentCreate, ContentOut,
-    ContentVersionCreate, ContentVersionOut,
-    ContentActiveVersionUpsert, ContentActiveVersionOut,
+    ContentActiveVersionOut,
+    ContentActiveVersionUpsert,
+    ContentCreate,
+    ContentOut,
+    ContentVersionCreate,
+    ContentVersionOut,
     ContentWithActiveVersionOut,
 )
 
 router = APIRouter(prefix="/content", tags=["content"])
 
-# -------- Cache keys / indexes --------
+
 def key_active(content_id: UUID) -> str:
     return f"content:active:{content_id}"
+
 
 def idx_pack(pack_id: UUID) -> str:
     return f"idx:content:pack:{pack_id}"
 
+
 def idx_category(category_id: UUID) -> str:
     return f"idx:content:category:{category_id}"
+
 
 def key_by_pack(pack_id: UUID, limit: int, offset: int) -> str:
     return f"content:by-pack:{pack_id}:l={limit}:o={offset}"
 
+
 def key_by_category(category_id: UUID, limit: int, offset: int) -> str:
     return f"content:by-category:{category_id}:l={limit}:o={offset}"
+
 
 def key_by_category_active(category_id: UUID, limit: int, offset: int, include_missing: bool) -> str:
     return f"content:by-category-active:{category_id}:l={limit}:o={offset}:missing={int(include_missing)}"
 
+
 def idx_versions(content_id: UUID) -> str:
     return f"idx:content:versions:{content_id}"
 
+
 def key_versions(content_id: UUID) -> str:
     return f"content:versions:{content_id}"
+
 
 def serialize_content(row: Content) -> dict:
     return {
         "id": str(row.id),
         "pack_id": str(row.pack_id),
+        "category_id": str(row.category_id),
         "created_by_user_id": str(row.created_by_user_id),
         "source_authority": row.source_authority,
         "name": row.name,
         "summary": row.summary,
+        "tags": list(row.tags or []),
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
+
 
 def serialize_content_version(row: ContentVersion) -> dict:
     return {
@@ -84,11 +97,29 @@ def serialize_content_version(row: ContentVersion) -> dict:
         "created_at": row.created_at.isoformat(),
     }
 
+
 def user_id_from_claims(user) -> UUID:
     return UUID(user["uid"]) if isinstance(user, dict) else user.id
 
+
 def enum_value(value) -> str:
     return getattr(value, "value", str(value))
+
+
+def normalize_tags(value) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise HTTPException(400, "tags must be an array")
+
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise HTTPException(400, "tags must be an array of strings")
+        tag = item.strip()
+        if tag:
+            normalized.append(tag)
+    return normalized
 
 
 async def _game_role_value(game_id: UUID, user_id: UUID, db: AsyncSession) -> str | None:
@@ -142,6 +173,7 @@ async def _can_delete_content(content: Content, user_id: UUID, db: AsyncSession)
     permission = await db.get(ContentPackPermission, {"pack_id": pack.id, "user_id": user_id})
     return bool(permission and permission.can_delete_any_content)
 
+
 async def require_category_view_access(category_id: UUID, user, db: AsyncSession) -> ContentCategory:
     category = await db.get(ContentCategory, category_id)
     if not category:
@@ -174,6 +206,7 @@ async def require_category_view_access(category_id: UUID, user, db: AsyncSession
 
     raise HTTPException(403, "Access denied")
 
+
 async def require_pack_view_access(pack_id: UUID, user, db: AsyncSession) -> ContentPack:
     pack = await db.get(ContentPack, pack_id)
     if not pack:
@@ -202,15 +235,13 @@ async def require_pack_view_access(pack_id: UUID, user, db: AsyncSession) -> Con
 
     raise HTTPException(403, "Access denied")
 
-async def invalidate_content_category_indexes(r: Redis, db: AsyncSession, content_id: UUID):
-    res = await db.execute(
-        select(ContentCategoryMembership.category_id)
-        .where(ContentCategoryMembership.content_id == content_id)
-    )
-    for category_id in res.scalars().all():
-        await cache_index_invalidate(r, idx_category(category_id))
 
-# -------- Content CRUD --------
+async def invalidate_content_category_indexes(r: Redis, db: AsyncSession, content_id: UUID):
+    row = await db.get(Content, content_id)
+    if row:
+        await cache_index_invalidate(r, idx_category(row.category_id))
+
+
 @router.post("", response_model=ContentOut, dependencies=[Depends(require_user)])
 async def create_content(
     payload: ContentCreate,
@@ -221,9 +252,11 @@ async def create_content(
     category = await db.get(ContentCategory, payload.category_id)
     if not category or category.pack_id != payload.pack_id:
         raise HTTPException(400, "category does not belong to the requested pack")
+
     pack = await db.get(ContentPack, payload.pack_id)
     if not pack:
         raise HTTPException(404, "pack not found")
+
     user_id = user_id_from_claims(user)
     if not await _can_create_content(pack, user_id, db):
         raise HTTPException(403, "access denied")
@@ -231,26 +264,21 @@ async def create_content(
     row = Content(
         id=new_id(),
         pack_id=payload.pack_id,
+        category_id=payload.category_id,
         created_by_user_id=user_id,
         source_authority=pack.created_by_role or ContentAuthority.owner_editor.value,
         name=payload.name,
         summary=payload.summary,
+        tags=normalize_tags(payload.tags),
     )
     db.add(row)
-    db.add(
-        ContentCategoryMembership(
-            pack_id=payload.pack_id,
-            category_id=payload.category_id,
-            content_id=row.id,
-        )
-    )
     await db.commit()
     await db.refresh(row)
 
-    # invalidate pack and category lists for new content
     await cache_index_invalidate(r, idx_pack(row.pack_id))
-    await cache_index_invalidate(r, idx_category(payload.category_id))
+    await cache_index_invalidate(r, idx_category(row.category_id))
     return row
+
 
 @router.get("", response_model=list[ContentOut], dependencies=[Depends(require_user)])
 async def list_content(limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
@@ -258,12 +286,13 @@ async def list_content(limit: int = 50, offset: int = 0, db: AsyncSession = Depe
     res = await db.execute(select(Content).limit(limit).offset(offset))
     return list(res.scalars().all())
 
+
 @router.get("/by-pack/{pack_id}", dependencies=[Depends(require_user)])
 async def list_content_by_pack(
     pack_id: UUID,
     limit: int = 50,
     offset: int = 0,
-    user = Depends(require_user),
+    user=Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
@@ -285,19 +314,19 @@ async def list_content_by_pack(
         .offset(offset)
     )
     rows = list(res.scalars().all())
-
     out = [serialize_content(x) for x in rows]
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
     return out
 
+
 @router.get("/by-category/{category_id}", dependencies=[Depends(require_user)])
 async def list_content_by_category(
     category_id: UUID,
     limit: int = 50,
     offset: int = 0,
-    user = Depends(require_user),
+    user=Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
@@ -313,22 +342,18 @@ async def list_content_by_category(
 
     res = await db.execute(
         select(Content)
-        .join(
-            ContentCategoryMembership,
-            ContentCategoryMembership.content_id == Content.id,
-        )
-        .where(ContentCategoryMembership.category_id == category_id)
+        .where(Content.category_id == category_id)
         .order_by(Content.updated_at.desc())
         .limit(limit)
         .offset(offset)
     )
     rows = list(res.scalars().all())
-
     out = [serialize_content(x) for x in rows]
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
     return out
+
 
 @router.get("/by-category/{category_id}/active", response_model=list[ContentWithActiveVersionOut], dependencies=[Depends(require_user)])
 async def list_content_by_category_with_active(
@@ -336,7 +361,7 @@ async def list_content_by_category_with_active(
     limit: int = 50,
     offset: int = 0,
     include_missing: bool = False,
-    user = Depends(require_user),
+    user=Depends(require_user),
     db: AsyncSession = Depends(get_db),
     r: Redis = Depends(get_redis),
 ):
@@ -353,10 +378,6 @@ async def list_content_by_category_with_active(
 
     q = (
         select(Content, ContentVersion)
-        .join(
-            ContentCategoryMembership,
-            ContentCategoryMembership.content_id == Content.id,
-        )
         .outerjoin(
             ContentActiveVersion,
             and_(
@@ -371,7 +392,7 @@ async def list_content_by_category_with_active(
                 ContentVersion.version_num == ContentActiveVersion.active_version_num,
             ),
         )
-        .where(ContentCategoryMembership.category_id == category_id)
+        .where(Content.category_id == category_id)
         .order_by(Content.updated_at.desc())
         .limit(limit)
         .offset(offset)
@@ -381,7 +402,6 @@ async def list_content_by_category_with_active(
         q = q.where(ContentVersion.id.is_not(None))
 
     rows = list((await db.execute(q)).all())
-
     out = [
         {
             "content": serialize_content(content),
@@ -395,57 +415,6 @@ async def list_content_by_category_with_active(
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
     return out
 
-@router.post("/category-memberships", response_model=ContentCategoryMembershipOut, dependencies=[Depends(require_user)])
-async def add_content_to_category(
-    payload: ContentCategoryMembershipCreate,
-    db: AsyncSession = Depends(get_db),
-    r: Redis = Depends(get_redis),
-):
-    content = await db.get(Content, payload.content_id)
-    category = await db.get(ContentCategory, payload.category_id)
-
-    if not content:
-        raise HTTPException(404, "content not found")
-    if not category:
-        raise HTTPException(404, "category not found")
-    if content.pack_id != payload.pack_id or category.pack_id != payload.pack_id:
-        raise HTTPException(400, "content and category must belong to the requested pack")
-
-    existing = await db.get(
-        ContentCategoryMembership,
-        (payload.category_id, payload.content_id),
-    )
-    if existing:
-        return existing
-
-    row = ContentCategoryMembership(
-        pack_id=payload.pack_id,
-        category_id=payload.category_id,
-        content_id=payload.content_id,
-    )
-    db.add(row)
-    await db.commit()
-    await db.refresh(row)
-
-    await cache_index_invalidate(r, idx_category(payload.category_id))
-    await cache_index_invalidate(r, idx_pack(payload.pack_id))
-    return row
-
-@router.delete("/category-memberships/{category_id}/{content_id}", status_code=204, dependencies=[Depends(require_user)])
-async def remove_content_from_category(
-    category_id: UUID,
-    content_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    r: Redis = Depends(get_redis),
-):
-    row = await db.get(ContentCategoryMembership, (category_id, content_id))
-    if row:
-        pack_id = row.pack_id
-        await db.delete(row)
-        await db.commit()
-
-        await cache_index_invalidate(r, idx_category(category_id))
-        await cache_index_invalidate(r, idx_pack(pack_id))
 
 @router.get("/{content_id}", response_model=ContentOut, dependencies=[Depends(require_user)])
 async def get_content(content_id: UUID, db: AsyncSession = Depends(get_db)):
@@ -453,6 +422,7 @@ async def get_content(content_id: UUID, db: AsyncSession = Depends(get_db)):
     if not row:
         raise HTTPException(404, "content not found")
     return row
+
 
 @router.patch("/{content_id}", response_model=ContentOut, dependencies=[Depends(require_user)])
 async def patch_content(
@@ -465,35 +435,36 @@ async def patch_content(
     row = await db.get(Content, content_id)
     if not row:
         raise HTTPException(404, "content not found")
+
     user_id = user_id_from_claims(user)
     if not await _can_edit_content(row, user_id, db):
         raise HTTPException(403, "access denied")
 
-    for k in ("id", "pack_id", "category_id", "created_at", "updated_at", "created_by_user_id", "source_authority"):
-        patch.pop(k, None)
+    old_pack_id = row.pack_id
+    old_category_id = row.category_id
 
-    old_pack = row.pack_id
+    for key in ("id", "pack_id", "category_id", "created_at", "updated_at", "created_by_user_id", "source_authority"):
+        patch.pop(key, None)
 
-    for k, v in patch.items():
-        if hasattr(row, k):
-            setattr(row, k, v)
+    if "tags" in patch:
+        patch["tags"] = normalize_tags(patch["tags"])
+
+    for key, value in patch.items():
+        if hasattr(row, key):
+            setattr(row, key, value)
 
     await db.commit()
     await db.refresh(row)
 
-    # invalidate pack lists for old and new pack (if moved)
-    await cache_index_invalidate(r, idx_pack(old_pack))
-    if row.pack_id != old_pack:
+    await cache_index_invalidate(r, idx_pack(old_pack_id))
+    await cache_index_invalidate(r, idx_category(old_category_id))
+    if row.pack_id != old_pack_id:
         await cache_index_invalidate(r, idx_pack(row.pack_id))
-
-    res = await db.execute(
-        select(ContentCategoryMembership.category_id)
-        .where(ContentCategoryMembership.content_id == content_id)
-    )
-    for category_id in res.scalars().all():
-        await cache_index_invalidate(r, idx_category(category_id))
+    if row.category_id != old_category_id:
+        await cache_index_invalidate(r, idx_category(row.category_id))
 
     return row
+
 
 @router.delete("/{content_id}", status_code=204, dependencies=[Depends(require_user)])
 async def delete_content(
@@ -507,23 +478,19 @@ async def delete_content(
         user_id = user_id_from_claims(user)
         if not await _can_delete_content(row, user_id, db):
             raise HTTPException(403, "access denied")
+
         pack_id = row.pack_id
-        res = await db.execute(
-            select(ContentCategoryMembership.category_id)
-            .where(ContentCategoryMembership.content_id == content_id)
-        )
-        category_ids = list(res.scalars().all())
+        category_id = row.category_id
 
         await db.delete(row)
         await db.commit()
 
         await cache_index_invalidate(r, idx_pack(pack_id))
-        for category_id in category_ids:
-            await cache_index_invalidate(r, idx_category(category_id))
+        await cache_index_invalidate(r, idx_category(category_id))
         await cache_index_invalidate(r, idx_versions(content_id))
         await r.delete(key_active(content_id))
 
-# -------- Versions --------
+
 @router.post("/{content_id}/versions", response_model=ContentVersionOut, dependencies=[Depends(require_user)])
 async def create_version(
     content_id: UUID,
@@ -538,9 +505,18 @@ async def create_version(
     content = await db.get(Content, content_id)
     if not content:
         raise HTTPException(404, "content not found")
+
     user_id = user_id_from_claims(user)
     if not await _can_edit_content(content, user_id, db):
         raise HTTPException(403, "access denied")
+
+    category = await db.get(ContentCategory, content.category_id)
+    if not category:
+        raise HTTPException(404, "category not found")
+
+    fields_schema_version = payload.fields.get("schema_version")
+    if fields_schema_version != category.schema_version:
+        raise HTTPException(400, "content version schema does not match the category schema version")
 
     version_num = payload.version_num
     if version_num is None:
@@ -558,13 +534,19 @@ async def create_version(
         fields=payload.fields,
     )
     db.add(row)
+
+    if "tags" in payload.fields:
+        content.tags = normalize_tags(payload.fields.get("tags"))
+
     await db.commit()
     await db.refresh(row)
 
     await cache_index_invalidate(r, idx_versions(content_id))
-    await r.delete(key_active(content_id))  # active may be impacted by UI logic
-    await invalidate_content_category_indexes(r, db, content_id)
+    await r.delete(key_active(content_id))
+    await cache_index_invalidate(r, idx_pack(content.pack_id))
+    await cache_index_invalidate(r, idx_category(content.category_id))
     return serialize_content_version(row)
+
 
 @router.get("/{content_id}/versions", response_model=list[ContentVersionOut], dependencies=[Depends(require_user)])
 async def list_versions(
@@ -585,25 +567,25 @@ async def list_versions(
         .order_by(ContentVersion.version_num.asc())
     )
     rows = list(res.scalars().all())
-
     out = [serialize_content_version(x) for x in rows]
 
     await cache_set_json(r, k, out, ttl=settings.CACHE_DEFAULT_TTL_SECONDS)
     await cache_index_add(r, idx, k, ttl_seconds=settings.CACHE_DEFAULT_TTL_SECONDS * 3)
     return out
 
+
 @router.get("/{content_id}/versions/{version_num}", response_model=ContentVersionOut, dependencies=[Depends(require_user)])
 async def get_version(content_id: UUID, version_num: int, db: AsyncSession = Depends(get_db)):
     q = select(ContentVersion).where(
         ContentVersion.content_id == content_id,
-        ContentVersion.version_num == version_num
+        ContentVersion.version_num == version_num,
     )
     row = (await db.execute(q)).scalars().first()
     if not row:
         raise HTTPException(404, "version not found")
     return serialize_content_version(row)
 
-# -------- Active pointer --------
+
 @router.put("/{content_id}/active", response_model=ContentActiveVersionOut, dependencies=[Depends(require_user)])
 async def upsert_active(
     content_id: UUID,
@@ -627,7 +609,7 @@ async def upsert_active(
     row = ContentActiveVersion(
         content_id=content_id,
         active_version_num=payload.active_version_num,
-        deleted_at=payload.deleted_at
+        deleted_at=payload.deleted_at,
     )
     db.add(row)
     await db.commit()
@@ -635,6 +617,7 @@ async def upsert_active(
     await r.delete(key_active(content_id))
     await invalidate_content_category_indexes(r, db, content_id)
     return row
+
 
 @router.get("/{content_id}/active", response_model=ContentVersionOut, dependencies=[Depends(require_user)])
 async def get_active_version(

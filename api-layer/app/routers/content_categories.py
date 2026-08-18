@@ -5,7 +5,7 @@ from uuid import UUID
 
 from app.routers._crud import crud_router
 from app.schema.db import get_db
-from app.schema.models import ContentCategory, ContentPack, Game, UserGameRole
+from app.schema.models import Content, ContentCategory, ContentPack, Game, UserGameRole
 from app.schema.schemas import ContentCategoryCreate, ContentCategoryOrderUpdate, ContentCategoryOut
 from app.helpers import require_user
 
@@ -62,6 +62,12 @@ async def delete_content_category(
     can_edit, _, _ = await _game_access(game, user_id, db)
     if not can_edit:
         raise HTTPException(403, "Only the owner or editors can delete content categories")
+
+    has_content = await db.scalar(
+        select(func.count(Content.id)).where(Content.category_id == category_id)
+    )
+    if has_content:
+        raise HTTPException(400, "Cannot delete a category that still contains content")
 
     await db.delete(category)
     await db.commit()

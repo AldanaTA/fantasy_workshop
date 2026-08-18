@@ -266,6 +266,12 @@ class ContentCategory(Base):
 
     name: Mapped[str] = mapped_column(Text, nullable=False)
 
+    schema_version: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="ttrpg-content-v1",
+    )
+
     sort_key: Mapped[int] = mapped_column(Integer, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -291,6 +297,12 @@ class Content(Base):
         nullable=False,
     )
 
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("content_categories.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
@@ -301,41 +313,17 @@ class Content(Base):
 
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    tags: Mapped[List[str]] = mapped_column(
+        ARRAY(Text),
+        nullable=False,
+        default=list,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class ContentCategoryMembership(Base):
-    __tablename__ = "content_category_memberships"
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ["category_id", "pack_id"],
-            ["content_categories.id", "content_categories.pack_id"],
-            ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            ["content_id", "pack_id"],
-            ["content.id", "content.pack_id"],
-            ondelete="CASCADE",
-        ),
-    )
-
-    pack_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-
-    category_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True
-    )
-
-    content_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
@@ -683,89 +671,6 @@ class CampaignContentVersion(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-
-class CampaignEvent(Base):
-    __tablename__ = "campaign_event"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-
-    campaign_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False
-    )
-
-    character_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("campaign_characters.id", ondelete="SET NULL"), nullable=True
-    )
-
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-
-    payload: Mapped[Dict] = mapped_column(JSONB, nullable=False, default=dict)
-
-    content_version_map: Mapped[Dict] = mapped_column(JSONB, nullable=False, default=dict)
-
-    event_type: Mapped[str] = mapped_column(Text, nullable=False)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
-
-
-class CampaignCharacterStateSnapshot(Base):
-    __tablename__ = "campaign_character_state_snapshots"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-
-    campaign_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False
-    )
-
-    character_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("campaign_characters.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    latest_event_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("campaign_event.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
-
-    last_event_timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-
-    state: Mapped[Dict] = mapped_column(JSONB, nullable=False, default=dict)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-class CampaignCharacterLatestSnapshot(Base):
-    __tablename__ = "campaign_character_latest_snapshots"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-
-    character_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("campaign_characters.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    latest_snapshot_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("campaign_character_state_snapshots.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
 
 class Invitations(Base):
     __tablename__ = "invitations"

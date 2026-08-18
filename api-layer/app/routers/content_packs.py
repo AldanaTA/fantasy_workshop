@@ -114,6 +114,7 @@ async def create_content_pack(
         id=new_id(),
         pack_id=content_pack.id,
         name="Uncategorized",
+        schema_version="ttrpg-content-v1",
     )
     db.add(category)
     await db.commit()
@@ -231,4 +232,3 @@ async def delete_content_pack(
     await db.delete(content_pack)
     await db.commit()
     return Response(status_code=204)
-
