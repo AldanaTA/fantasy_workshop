@@ -6,6 +6,18 @@ from app.schema.campaign_note_body import default_campaign_note_body, validate_c
 
 TTRPG_CONTENT_SCHEMA_VERSION = "ttrpg-content-v1"
 
+
+def default_category_schema_definition() -> dict[str, Any]:
+    return {
+        "fields": [
+            {
+                "key": "name",
+                "label": "Name",
+                "type": "string",
+            }
+        ]
+    }
+
 class IdOut(BaseModel):
     id: UUID
 
@@ -105,18 +117,32 @@ class ContentPackOut(IdOut):
 # Content category
 class ContentCategoryCreate(BaseModel):
     pack_id: UUID
+    kind: str = Field(default="generic", pattern="^(generic|character_sheet)$")
     name: str = Field(min_length=1, max_length=200)
-    schema_version: str = Field(default=TTRPG_CONTENT_SCHEMA_VERSION, min_length=1, max_length=200)
+    schema_definition: dict[str, Any] = Field(default_factory=default_category_schema_definition)
     sort_key: Optional[int] = None
 
 class ContentCategoryOrderUpdate(BaseModel):
     category_ids: list[UUID]
 
+class ContentCategorySchemaUpdate(BaseModel):
+    kind: str = Field(pattern="^(generic|character_sheet)$")
+    schema_definition: dict[str, Any]
+
+class ContentCategorySchemaOut(BaseModel):
+    category_id: UUID
+    schema_version: int
+    schema_definition: dict[str, Any]
+    created_by_user_id: UUID
+    created_at: datetime
+
 class ContentCategoryOut(IdOut):
     pack_id: UUID
+    kind: str
     name: str
-    schema_version: str
     sort_key: int
+    active_schema_version: Optional[int] = None
+    active_schema_definition: Optional[dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
 
@@ -126,7 +152,6 @@ class ContentCreate(BaseModel):
     category_id: UUID
     name: str = Field(min_length=1, max_length=200)
     summary: Optional[str] = None
-    tags: list[str] = Field(default_factory=list)
 
 class ContentOut(IdOut):
     pack_id: UUID
@@ -135,45 +160,16 @@ class ContentOut(IdOut):
     source_authority: str
     name: str
     summary: Optional[str]
-    tags: list[str]
     created_at: datetime
     updated_at: datetime
 
 # Content versions
 def default_content_fields() -> dict[str, Any]:
-    return {
-        "schema_version": TTRPG_CONTENT_SCHEMA_VERSION,
-        "content_type": "custom",
-        "traits": [],
-        "requirements": [],
-        "mechanics": [],
-        "scaling": [],
-        "notes": [],
-    }
+    return {}
 
 def validate_content_fields_shape(fields: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(fields, dict):
         raise ValueError("fields must be a JSON object")
-
-    schema_version = fields.get("schema_version")
-    if not isinstance(schema_version, str) or not schema_version.strip():
-        raise ValueError("fields.schema_version is required")
-
-    content_type = fields.get("content_type")
-    if not isinstance(content_type, str) or not content_type.strip():
-        raise ValueError("fields.content_type is required")
-
-    for key in ("mechanics", "scaling", "traits"):
-        if key in fields and not isinstance(fields[key], list):
-            raise ValueError(f"fields.{key} must be an array")
-
-    for index, effect in enumerate(fields.get("mechanics", []), start=1):
-        if not isinstance(effect, dict):
-            raise ValueError(f"fields.mechanics[{index}] must be an object")
-        effect_type = effect.get("type")
-        if not isinstance(effect_type, str) or not effect_type.strip():
-            raise ValueError(f"fields.mechanics[{index}].type is required")
-
     return fields
 
 class ContentVersionCreate(BaseModel):
@@ -188,11 +184,11 @@ class ContentVersionCreate(BaseModel):
 
 class ContentVersionOut(IdOut):
     content_id: UUID
+    category_id: UUID
+    category_schema_version: int
     created_by_user_id: UUID
     version_num: int
     fields: dict[str, Any]
-    schema_version: str
-    content_type: str
     created_at: datetime
 
 class ContentWithActiveVersionOut(BaseModel):

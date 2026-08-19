@@ -2,6 +2,11 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE TYPE content_category_kind AS ENUM (
+    'generic',
+    'character_sheet'
+);
+
 -- ============================================================
 -- CONTENT CATEGORIES
 -- ============================================================
@@ -13,6 +18,7 @@ CREATE TABLE IF NOT EXISTS content_categories (
         REFERENCES content_packs(id)
         ON DELETE CASCADE,
 
+    kind       content_category_kind NOT NULL DEFAULT 'generic',
     name       TEXT NOT NULL,
     sort_key   INT,
 

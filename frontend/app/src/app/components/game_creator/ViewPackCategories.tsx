@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Separator } from '../ui/separator';
 import {
@@ -23,17 +24,21 @@ import {
   DialogTitle,
 } from '../ui/dialog';
 import { ChevronDown, ChevronUp, Edit3, Plus, CircleArrowLeft, Trash2 } from 'lucide-react';
-import { Content, ContentCategory, ContentPack } from '../../api/models';
+import { Content, ContentCategory, ContentCategorySchemaDefinition, ContentPack } from '../../api/models';
 import { contentCategoriesApi, invalidateContentCategoriesByPack } from '../../api/contentCategoriesApi';
 import { contentApi, invalidateContentCategoryCaches } from '../../api/contentApi';
 import { useToast } from '../ui/toastProvider';
 import { ContentMaker } from './contentMaker';
 
 interface FormState {
-    name: string;
+  name: string;
+  kind: 'generic' | 'character_sheet';
+  schemaText: string;
 }
 const emptyForm: FormState = {
   name: '',
+  kind: 'generic',
+  schemaText: JSON.stringify(defaultSchemaDefinition('generic'), null, 2),
 };
 
 type CategoryContentState = {
@@ -215,6 +220,8 @@ export function ViewPackCategories({
     setActiveCategory(contentCategory);
     setForm({
       name: contentCategory.name,
+      kind: contentCategory.kind === 'character_sheet' ? 'character_sheet' : 'generic',
+      schemaText: JSON.stringify(contentCategory.active_schema_definition ?? defaultSchemaDefinition(contentCategory.kind === 'character_sheet' ? 'character_sheet' : 'generic'), null, 2),
     });
     setIsDialogOpen(true);
   };
@@ -235,10 +242,14 @@ export function ViewPackCategories({
     setError(null);
 
     try {
+      const schema_definition = parseSchemaText(form.schemaText);
+      validateSchemaDefinition(schema_definition, form.kind);
       if (dialogMode === 'create') {
         await toastPromise(contentCategoriesApi.create({
           pack_id: pack.id,
           name: form.name.trim(),
+          kind: form.kind,
+          schema_definition,
         }), {
           loading: "Creating content category...",
           success: "Content category created successfully.",
@@ -250,6 +261,8 @@ export function ViewPackCategories({
       } else if (activeCategory) {
         await toastPromise(contentCategoriesApi.patch(activeCategory.id, {
           name: form.name.trim(),
+          kind: form.kind,
+          schema_definition,
         }), {
           loading: "Updating content category...",
           success: "Content category updated successfully.",
@@ -262,6 +275,7 @@ export function ViewPackCategories({
       closeDialog();
       await loadPacks();
     } catch (err) {
+      setError((err as Error)?.message || 'Unable to save content category.');
     }
   };
   const handleDelete = async () => {
@@ -417,7 +431,10 @@ export function ViewPackCategories({
               <Card key={category.id} className="border">
                 <CardHeader>
                   <CardTitle>{category.name}</CardTitle>
-                  <CardDescription>Render Order: {index + 1}</CardDescription>
+                  <CardDescription>
+                    {category.kind === 'character_sheet' ? 'Character Sheet' : 'Generic'} · Render Order: {index + 1}
+                    {category.active_schema_version ? ` · Schema v${category.active_schema_version}` : ''}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
@@ -573,6 +590,54 @@ export function ViewPackCategories({
                 required
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="category_kind">Kind</Label>
+              <select
+                id="category_kind"
+                value={form.kind}
+                onChange={(event) => setForm((prev) => {
+                  const nextKind = event.target.value === 'character_sheet' ? 'character_sheet' : 'generic';
+                  const currentSchema = safeParseSchemaText(prev.schemaText);
+                  const nextSchema = currentSchema ?? defaultSchemaDefinition(nextKind);
+                  return {
+                    ...prev,
+                    kind: nextKind,
+                    schemaText: JSON.stringify(nextSchema, null, 2),
+                  };
+                })}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="generic">Generic</option>
+                <option value="character_sheet">Character Sheet</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="category_schema">Schema Definition</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setForm((prev) => ({
+                      ...prev,
+                      schemaText: JSON.stringify(defaultSchemaDefinition(prev.kind), null, 2),
+                    }))}
+                  >
+                    Reset Template
+                  </Button>
+                </div>
+              </div>
+              <Textarea
+                id="category_schema"
+                value={form.schemaText}
+                onChange={(event) => setForm((prev) => ({ ...prev, schemaText: event.target.value }))}
+                className="min-h-[280px] font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Define the shared fields for content in this category. The `name` field is required.
+              </p>
+            </div>
             {error ? (
               <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
                 {error}
@@ -616,7 +681,7 @@ export function ViewPackCategories({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Content?</AlertDialogTitle>
             <AlertDialogDescription>
-              Deleting {deleteContentTarget?.content.name ?? 'this content'} is permanent. This will remove its versions and category memberships.
+              Deleting {deleteContentTarget?.content.name ?? 'this content'} is permanent. This will remove its saved versions and active state.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -639,4 +704,106 @@ export function ViewPackCategories({
 
 function isAbortError(err: unknown) {
   return err instanceof DOMException && err.name === 'AbortError';
+}
+
+function parseSchemaText(value: string): ContentCategorySchemaDefinition {
+  try {
+    const parsed = JSON.parse(value) as ContentCategorySchemaDefinition;
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.fields)) {
+      throw new Error('Schema must be an object with a fields array.');
+    }
+    return parsed;
+  } catch (err) {
+    throw new Error((err as Error)?.message || 'Schema definition must be valid JSON.');
+  }
+}
+
+function safeParseSchemaText(value: string): ContentCategorySchemaDefinition | null {
+  try {
+    return parseSchemaText(value);
+  } catch {
+    return null;
+  }
+}
+
+function validateSchemaDefinition(
+  schema: ContentCategorySchemaDefinition,
+  kind: 'generic' | 'character_sheet',
+) {
+  if (!Array.isArray(schema.fields) || schema.fields.length === 0) {
+    throw new Error('Schema must include at least one field.');
+  }
+
+  const nameField = schema.fields.find((field) => field.key === 'name');
+  if (!nameField) {
+    throw new Error('Schema must include a default `name` field.');
+  }
+
+  for (const field of schema.fields) {
+    validateSchemaField(field, kind);
+  }
+}
+
+function validateSchemaField(
+  field: ContentCategorySchemaField,
+  kind: 'generic' | 'character_sheet',
+) {
+  if (!field.key?.trim()) {
+    throw new Error('Every schema field must have a key.');
+  }
+
+  const isReferenceField =
+    field.type === 'content_reference' || field.type === 'content_reference_list';
+
+  if (kind === 'generic' && isReferenceField && Array.isArray(field.allowed_categories) && field.allowed_categories.length > 0) {
+    throw new Error(`Generic categories cannot set allowed_categories on \`${field.key}\`.`);
+  }
+
+  if (kind === 'character_sheet' && isReferenceField) {
+    if (!Array.isArray(field.allowed_categories) || field.allowed_categories.length === 0) {
+      throw new Error(`Character sheet reference field \`${field.key}\` must define allowed_categories.`);
+    }
+  }
+
+  if (field.type === 'object_list' && field.object_schema) {
+    for (const nestedField of field.object_schema.fields ?? []) {
+      validateSchemaField(nestedField, kind);
+    }
+  }
+}
+
+function defaultSchemaDefinition(kind: 'generic' | 'character_sheet' | string): ContentCategorySchemaDefinition {
+  if (kind === 'character_sheet') {
+    return {
+      fields: [
+        { key: 'name', label: 'Name', type: 'string', required: true },
+        { key: 'hp', label: 'HP', type: 'number' },
+        { key: 'mp', label: 'MP', type: 'number' },
+        { key: 'ep', label: 'EP', type: 'number' },
+        { key: 'gold', label: 'Gold', type: 'number' },
+        {
+          key: 'traits',
+          label: 'Traits / Features',
+          type: 'object_list',
+          object_schema: {
+            fields: [
+              { key: 'name', label: 'Name', type: 'string', required: true },
+              { key: 'uses', label: 'Uses', type: 'number' },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  return {
+    fields: [
+      { key: 'name', label: 'Name', type: 'string', required: true },
+      { key: 'descr', label: 'Description', type: 'text' },
+      { key: 'cost', label: 'Cost', type: 'number' },
+      { key: 'mp_cost', label: 'MP Cost', type: 'number' },
+      { key: 'ep_cost', label: 'EP Cost', type: 'number' },
+      { key: 'tp_cost', label: 'TP Cost', type: 'number' },
+    ],
+  };
 }

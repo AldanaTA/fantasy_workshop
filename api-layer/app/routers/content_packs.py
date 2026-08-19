@@ -8,6 +8,8 @@ from app.schema.db import get_db
 from app.schema.models import (
     ContentAuthority,
     ContentCategory,
+    ContentCategoryActiveSchema,
+    ContentCategorySchema,
     ContentPack,
     ContentPackPermission,
     Game,
@@ -114,9 +116,31 @@ async def create_content_pack(
         id=new_id(),
         pack_id=content_pack.id,
         name="Uncategorized",
-        schema_version="ttrpg-content-v1",
     )
     db.add(category)
+    await db.flush()
+    db.add(
+        ContentCategorySchema(
+            category_id=category.id,
+            schema_version=1,
+            schema_definition={
+                "fields": [
+                    {
+                        "key": "name",
+                        "label": "Name",
+                        "type": "string",
+                    }
+                ]
+            },
+            created_by_user_id=user_id,
+        )
+    )
+    db.add(
+        ContentCategoryActiveSchema(
+            category_id=category.id,
+            schema_version=1,
+        )
+    )
     await db.commit()
     await db.refresh(content_pack)
     return content_pack

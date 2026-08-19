@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 
 from app.helpers import require_user, new_id
 from app.schema.db import get_db, get_redis
-from app.schema.models import ContentCategory, Game, GameRole, GameVisibility, UserGameRole, ContentPack
+from app.schema.models import ContentCategory, ContentCategoryActiveSchema, ContentCategorySchema, Game, GameRole, GameVisibility, UserGameRole, ContentPack
 from app.schema.schemas import GameCreate, GameOut, LibraryGameOut
 from app.helpers_rate_limit import rate_limit_or_429
 
@@ -47,6 +47,29 @@ async def create_game(
         name="Uncategorized"
     )
     db.add(category)
+    await db.flush()
+    db.add(
+        ContentCategorySchema(
+            category_id=category.id,
+            schema_version=1,
+            schema_definition={
+                "fields": [
+                    {
+                        "key": "name",
+                        "label": "Name",
+                        "type": "string",
+                    }
+                ]
+            },
+            created_by_user_id=obj.owner_user_id,
+        )
+    )
+    db.add(
+        ContentCategoryActiveSchema(
+            category_id=category.id,
+            schema_version=1,
+        )
+    )
     await db.commit()
     return obj
 

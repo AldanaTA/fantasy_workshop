@@ -1,7 +1,6 @@
 import { Visibility } from "../types/visibility";
 import { Status} from "../types/status";
 import { JSONDict,UUID,DateTime } from "../types/misc";
-import { ContentFields } from "../types/contentFields";
 import { CampaignNoteBody, CampaignNoteDocument } from "../types/campaignNotes";
 
 
@@ -94,8 +93,11 @@ export interface ContentPack {
 export interface ContentCategory {
 	id: UUID;
 	pack_id: UUID;
+	kind: "generic" | "character_sheet" | string;
 	name: string;
 	sort_key: number;
+	active_schema_version?: number | null;
+	active_schema_definition?: ContentCategorySchemaDefinition | null;
 	created_at: DateTime;
 	updated_at: DateTime;
 }
@@ -108,7 +110,6 @@ export interface Content {
 	source_authority: string;
 	name: string;
 	summary?: string | null;
-	tags?: string[];
 	created_at: DateTime;
 	updated_at: DateTime;
 }
@@ -133,19 +134,49 @@ export interface ContentCategoryMembershipCreate {
 	content_id: UUID;
 }
 
+export type ContentCategoryFieldType =
+	| 'string'
+	| 'text'
+	| 'number'
+	| 'boolean'
+	| 'content_reference'
+	| 'content_reference_list'
+	| 'object_list';
+
+export interface ContentCategorySchemaField {
+	key: string;
+	label?: string;
+	type: ContentCategoryFieldType | string;
+	required?: boolean;
+	allowed_categories?: string[];
+	object_schema?: ContentCategorySchemaDefinition;
+}
+
+export interface ContentCategorySchemaDefinition {
+	fields: ContentCategorySchemaField[];
+}
+
+export interface ContentCategorySchemaVersion {
+	category_id: UUID;
+	schema_version: number;
+	schema_definition: ContentCategorySchemaDefinition;
+	created_by_user_id: UUID;
+	created_at: DateTime;
+}
+
 export interface ContentVersion {
 	id: UUID;
 	content_id: UUID;
+	category_id: UUID;
+	category_schema_version: number;
 	created_by_user_id: UUID;
 	version_num: number;
-	fields: ContentFields;
-	schema_version?: string;
-	content_type?: string;
+	fields: Record<string, unknown>;
 	created_at: DateTime;
 }
 
 export interface ContentVersionCreate {
-	fields: ContentFields;
+	fields: Record<string, unknown>;
 	version_num?: number;
 }
 

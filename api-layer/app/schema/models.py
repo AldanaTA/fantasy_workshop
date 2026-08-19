@@ -63,6 +63,11 @@ class ContentAuthority(PyEnum):
     purchaser = "purchaser"
 
 
+class ContentCategoryKind(PyEnum):
+    generic = "generic"
+    character_sheet = "character_sheet"
+
+
 class CampaignNoteVisibility(PyEnum):
     gm = "gm"
     shared = "shared"
@@ -264,13 +269,13 @@ class ContentCategory(Base):
         nullable=False,
     )
 
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-
-    schema_version: Mapped[str] = mapped_column(
-        Text,
+    kind: Mapped[ContentCategoryKind] = mapped_column(
+        Enum(ContentCategoryKind, name="content_category_kind", native_enum=True),
         nullable=False,
-        default="ttrpg-content-v1",
+        default=ContentCategoryKind.generic,
     )
+
+    name: Mapped[str] = mapped_column(Text, nullable=False)
 
     sort_key: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -287,6 +292,12 @@ class Content(Base):
     __tablename__ = "content"
     __table_args__ = (
         UniqueConstraint("id", "pack_id", name="content_id_pack_uq"),
+        UniqueConstraint("id", "category_id", name="content_id_category_uq"),
+        ForeignKeyConstraint(
+            ["category_id", "pack_id"],
+            ["content_categories.id", "content_categories.pack_id"],
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
@@ -297,11 +308,7 @@ class Content(Base):
         nullable=False,
     )
 
-    category_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("content_categories.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
+    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -312,12 +319,6 @@ class Content(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
 
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    tags: Mapped[List[str]] = mapped_column(
-        ARRAY(Text),
-        nullable=False,
-        default=list,
-    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -332,13 +333,25 @@ class ContentVersion(Base):
     __tablename__ = "content_versions"
     __table_args__ = (
         UniqueConstraint("content_id", "version_num", name="content_versions_content_version_unique"),
+        ForeignKeyConstraint(
+            ["content_id", "category_id"],
+            ["content.id", "content.category_id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["category_id", "category_schema_version"],
+            ["content_category_schemas.category_id", "content_category_schemas.schema_version"],
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
 
-    content_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("content.id", ondelete="CASCADE"), nullable=False
-    )
+    content_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    category_schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
 
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -346,31 +359,50 @@ class ContentVersion(Base):
 
     version_num: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    fields: Mapped[Dict] = mapped_column(
-        JSONB,
-        nullable=False,
-        default=lambda: {
-            "schema_version": "ttrpg-content-v1",
-            "content_type": "custom",
-            "traits": [],
-            "requirements": [],
-            "mechanics": [],
-            "scaling": [],
-            "notes": [],
-        },
+    fields: Mapped[Dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    schema_version: Mapped[str] = mapped_column(
-        Text,
-        Computed("COALESCE(NULLIF(fields->>'schema_version', ''), 'ttrpg-content-v1')"),
+
+class ContentCategorySchema(Base):
+    __tablename__ = "content_category_schemas"
+
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("content_categories.id", ondelete="CASCADE"), primary_key=True
     )
 
-    content_type: Mapped[str] = mapped_column(
-        Text,
-        Computed("COALESCE(NULLIF(fields->>'content_type', ''), 'custom')"),
+    schema_version: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    schema_definition: Mapped[Dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
 
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ContentCategoryActiveSchema(Base):
+    __tablename__ = "content_category_active_schemas"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["category_id", "schema_version"],
+            ["content_category_schemas.category_id", "content_category_schemas.schema_version"],
+            ondelete="RESTRICT",
+        ),
+    )
+
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("content_categories.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 

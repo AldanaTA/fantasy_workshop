@@ -1,15 +1,12 @@
 import { API_CONFIG } from './apiConfig';
 import type {
   Content,
-  ContentCategoryMembership,
-  ContentCategoryMembershipCreate,
   ContentCreate,
   ContentVersion,
   ContentVersionCreate,
   ContentActiveVersion,
   ContentWithActiveVersion,
 } from './models';
-import { validateContentFields } from '../types/contentFields';
 import { authStore } from './authStorage';
 import { fetchWithCache, invalidateCacheByPrefix } from './requestCache';
 
@@ -69,13 +66,6 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-const validateContentVersionPayload = (payload: ContentVersionCreate) => {
-  const errors = validateContentFields(payload.fields);
-  if (errors.length) {
-    throw new Error(errors.join(' '));
-  }
-};
-
 export const contentApi = {
   create: (payload: ContentCreate, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
@@ -130,21 +120,6 @@ export const contentApi = {
     );
   },
 
-  addToCategory: (payload: ContentCategoryMembershipCreate, options?: string | ApiRequestOptions) => {
-    const { token, signal } = resolveOptions(options);
-    return request<ContentCategoryMembership>('/category-memberships', { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((membership) => {
-      invalidateContentCategoryCaches(payload.category_id);
-      return membership;
-    });
-  },
-
-  removeFromCategory: (categoryId: string, contentId: string, options?: string | ApiRequestOptions) => {
-    const { token, signal } = resolveOptions(options);
-    return request<void>(`/category-memberships/${categoryId}/${contentId}`, { method: 'DELETE', headers: authHeaders(token), signal }).then(() => {
-      invalidateContentCategoryCaches(categoryId);
-    });
-  },
-
   patch: (contentId: string, patch: Partial<Content>, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
     return request<Content>(`/${contentId}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token), signal }).then((content) => {
@@ -164,7 +139,6 @@ export const contentApi = {
   // Versions
   createVersion: (contentId: string, payload: ContentVersionCreate, options?: string | ApiRequestOptions) => {
     const { token, signal } = resolveOptions(options);
-    validateContentVersionPayload(payload);
     return request<ContentVersion>(`/${contentId}/versions`, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((version) => {
       invalidateContentItemCaches(contentId);
       return version;

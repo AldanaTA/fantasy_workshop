@@ -1,5 +1,5 @@
 import { API_CONFIG } from './apiConfig';
-import type { ContentCategory } from './models';
+import type { ContentCategory, ContentCategorySchemaDefinition, ContentCategorySchemaVersion } from './models';
 import { authStore } from './authStorage';
 import { fetchWithCache, invalidateCacheByPrefix } from './requestCache';
 
@@ -58,19 +58,29 @@ export const contentCategoriesApi = {
 		const { token, signal } = resolveOptions(options);
 		return request<ContentCategory>(`/${id}`, { method: 'GET', headers: authHeaders(token), signal });
 	},
-	create: (payload: Partial<ContentCategory>, options?: string | ApiRequestOptions) => {
+	create: (payload: {
+		pack_id: string;
+		name: string;
+		kind: 'generic' | 'character_sheet';
+		schema_definition: ContentCategorySchemaDefinition;
+		sort_key?: number;
+	}, options?: string | ApiRequestOptions) => {
 		const { token, signal } = resolveOptions(options);
 		return request<ContentCategory>(``, { method: 'POST', body: JSON.stringify(payload), headers: authHeaders(token), signal }).then((category) => {
 			invalidateContentCategoriesByPack(category.pack_id);
 			return category;
 		});
 	},
-	patch: (id: string, patch: Partial<ContentCategory>, options?: string | ApiRequestOptions) => {
+	patch: (id: string, patch: Partial<ContentCategory> & { schema_definition?: ContentCategorySchemaDefinition }, options?: string | ApiRequestOptions) => {
 		const { token, signal } = resolveOptions(options);
 		return request<ContentCategory>(`/${id}`, { method: 'PATCH', body: JSON.stringify(patch), headers: authHeaders(token), signal }).then((category) => {
 			invalidateContentCategoriesByPack(category.pack_id);
 			return category;
 		});
+	},
+	listSchemas: (categoryId: string, options?: string | ApiRequestOptions) => {
+		const { token, signal } = resolveOptions(options);
+		return request<ContentCategorySchemaVersion[]>(`/${categoryId}/schemas`, { method: 'GET', headers: authHeaders(token), signal });
 	},
 	reorder: (packId: string, categoryIds: string[], options?: string | ApiRequestOptions) => {
 		const { token, signal } = resolveOptions(options);
