@@ -135,6 +135,7 @@ async def create_content_pack(
             created_by_user_id=user_id,
         )
     )
+    await db.flush()
     db.add(
         ContentCategoryActiveSchema(
             category_id=category.id,

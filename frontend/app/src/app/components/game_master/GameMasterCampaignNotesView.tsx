@@ -5,7 +5,7 @@ import { campaignsApi } from '../../api/campaignsApi';
 import { contentApi } from '../../api/contentApi';
 import { contentCategoriesApi } from '../../api/contentCategoriesApi';
 import { contentPacksApi } from '../../api/contentPacksApi';
-import type { Campaign, CampaignNote } from '../../api/models';
+import type { Campaign, CampaignNote, ContentCategory } from '../../api/models';
 import type { Content, ContentVersion } from '../../api/models';
 import type { CampaignNoteDocument, CampaignNoteLinkedRule } from '../../types/campaignNotes';
 import { CampaignNoteEditor } from '../content/CampaignNoteEditor';
@@ -55,12 +55,14 @@ type LinkableRuleOption = {
   content: Content;
   packName: string;
   categoryName: string;
+  category?: ContentCategory;
   activeVersion?: ContentVersion;
 };
 
 type ResolvedLinkedRule = {
   link: CampaignNoteLinkedRule;
   content?: Content;
+  category?: ContentCategory;
   version?: ContentVersion;
   defaultActiveVersion?: ContentVersion;
   error?: string;
@@ -129,7 +131,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
       || (rule.content.summary ?? '').toLowerCase().includes(search)
       || rule.packName.toLowerCase().includes(search)
       || rule.categoryName.toLowerCase().includes(search)
-      || (rule.activeVersion?.fields as { content_type?: string } | undefined)?.content_type?.toLowerCase().includes(search)
+      || safeSearchText(rule.activeVersion?.fields).includes(search)
     ));
   }, [linkSearch, linkableRules]);
 
@@ -178,6 +180,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
                 content: row.content,
                 packName: entry.pack.pack_name,
                 categoryName: category.name,
+                category,
                 activeVersion: row.active_version ?? undefined,
               });
             }
@@ -250,6 +253,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
         linkedRules.map(async (link) => {
           try {
             const content = await contentApi.get(link.content_id);
+            const category = await contentCategoriesApi.get(content.category_id).catch(() => undefined);
             const defaultActiveVersion = await contentApi.getActive(link.content_id).catch(() => undefined);
             const version =
               link.link_mode === 'snapshot' && link.pinned_version_num
@@ -258,7 +262,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
                   ? await contentApi.getVersion(link.content_id, pinMap.get(link.content_id) as number).catch(() => defaultActiveVersion)
                   : defaultActiveVersion;
 
-            return [buildLinkedRuleKey(link), { link, content, version, defaultActiveVersion }] as const;
+            return [buildLinkedRuleKey(link), { link, content, category, version, defaultActiveVersion }] as const;
           } catch (err) {
             return [buildLinkedRuleKey(link), { link, error: (err as Error)?.message || 'Unable to load linked rule.' }] as const;
           }
@@ -700,7 +704,6 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
             ) : (
               <div className="space-y-3">
                 {filteredLinkableRules.map((rule) => {
-                  const contentType = (rule.activeVersion?.fields as { content_type?: string } | undefined)?.content_type;
                   const alreadyLinkedLive = linkedRules.some((link) => link.content_id === rule.content.id && link.link_mode === 'live');
                   const alreadyLinkedSnapshot = linkedRules.some((link) => link.content_id === rule.content.id && link.link_mode === 'snapshot');
                   return (
@@ -709,7 +712,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
                         <div className="min-w-0 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="break-words text-sm font-medium">{rule.content.name}</p>
-                            {contentType ? <Badge variant="outline">{contentType}</Badge> : null}
+                            {rule.category ? <Badge variant="outline">{rule.category.kind}</Badge> : null}
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {rule.packName} · {rule.categoryName}
@@ -762,6 +765,7 @@ export function GameMasterCampaignNotesView({ campaign, onBack, embedded = false
             {previewLinkedRule?.version ? (
               <ContentRender
                 fields={previewLinkedRule.version.fields}
+                category={previewLinkedRule.category}
                 contentName={previewLinkedRule.content?.name}
                 summary={previewLinkedRule.content?.summary}
                 mode="full"
@@ -808,4 +812,18 @@ function formatDateTime(value: string) {
 
 function buildLinkedRuleKey(link: CampaignNoteLinkedRule) {
   return `${link.content_id}:${link.link_mode}:${link.pinned_version_num ?? 'live'}`;
+}
+
+function safeSearchText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).toLowerCase();
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => safeSearchText(item)).join(' ');
+  }
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).map((item) => safeSearchText(item)).join(' ');
+  }
+  return '';
 }

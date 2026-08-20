@@ -46,6 +46,7 @@ export type GameRulesRendererProps = {
 
 type RulebookContentItem = {
   content: Content;
+  category: ContentCategory;
   activeVersion?: ContentVersion;
   legacyVersions: ContentVersion[];
   error?: string;
@@ -767,6 +768,7 @@ function RuleContentItem({
 
       <ContentRender
         fields={effectiveVersion.fields}
+        category={item.category}
         contentName={item.content.name}
         summary={item.content.summary}
         mode={mode}
@@ -794,6 +796,7 @@ function RuleContentItem({
                     </div>
                     <ContentRender
                       fields={version.fields}
+                      category={item.category}
                       contentName={`${item.content.name} (v${version.version_num})`}
                       summary={item.content.summary}
                       mode={mode}
@@ -852,6 +855,7 @@ function createRulebookContentItem(
 
   return {
     content: row.content,
+    category,
     activeVersion,
     legacyVersions,
     error: row.error || 'No active version found.',
@@ -955,25 +959,6 @@ function matchesRulesFilters(
   if (!filterVersion && visibility === 'player') return false;
   if (!filterVersion && !filters.includeNoActiveVersion) return false;
 
-  const fields = filterVersion?.fields;
-  const maybeTypedFields = fields as {
-    content_type?: string;
-    tags?: string[];
-    system?: { id?: string };
-  } | undefined;
-
-  if (filters.contentTypes?.length && !filters.contentTypes.includes(maybeTypedFields?.content_type ?? '')) {
-    return false;
-  }
-
-  if (filters.tags?.length && !filters.tags.some((tag) => maybeTypedFields?.tags?.includes(tag))) {
-    return false;
-  }
-
-  if (filters.systems?.length && !filters.systems.includes(maybeTypedFields?.system?.id ?? '')) {
-    return false;
-  }
-
   return !search || item.searchText.includes(search);
 }
 
@@ -983,27 +968,13 @@ function buildRuleSearchText(
   activeVersion?: ContentVersion,
   legacyVersions: ContentVersion[] = [],
 ) {
-  const collectFields = (version?: ContentVersion) => {
-    const fields = version?.fields as {
-      content_type?: string;
-      tags?: string[];
-      system?: { id?: string };
-      render?: { short_text?: string; long_text?: string };
-    } | undefined;
-
-    return [
-      fields?.content_type,
-      fields?.system?.id,
-      fields?.render?.short_text,
-      fields?.render?.long_text,
-      ...(fields?.tags ?? []),
-    ];
-  };
+  const collectFields = (version?: ContentVersion) => flattenSearchValues(version?.fields);
 
   return [
     content.name,
     content.summary,
     category.name,
+    category.kind,
     ...collectFields(activeVersion),
     ...legacyVersions.flatMap((version) => [`version ${version.version_num}`, `legacy v${version.version_num}`, ...collectFields(version)]),
   ]
@@ -1025,4 +996,18 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 
 function isAbortError(err: unknown) {
   return err instanceof DOMException && err.name === 'AbortError';
+}
+
+function flattenSearchValues(value: unknown): string[] {
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return [String(value)];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => flattenSearchValues(item));
+  }
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).flatMap((item) => flattenSearchValues(item));
+  }
+  return [];
 }

@@ -25,6 +25,18 @@ from app.schema.schemas import (
 
 router = APIRouter(prefix="/content/categories", tags=["content_categories"])
 
+SUPPORTED_FIELD_TYPES = {
+    "string",
+    "text",
+    "number",
+    "boolean",
+    "dice",
+    "formula",
+    "content_reference",
+    "content_reference_list",
+    "object_list",
+}
+
 
 def _enum_value(value) -> str:
     return getattr(value, "value", str(value))
@@ -94,6 +106,8 @@ def _validate_schema_definition(kind: str, schema_definition: dict) -> dict:
 
         if not isinstance(field_type, str) or not field_type.strip():
             raise HTTPException(400, f"schema_definition.fields[{index}].type is required")
+        if field_type not in SUPPORTED_FIELD_TYPES:
+            raise HTTPException(400, f"schema_definition.fields[{index}].type '{field_type}' is not supported")
 
         if field_type == "object_list":
             object_schema = field.get("object_schema")
@@ -177,6 +191,7 @@ async def create_content_category(
         created_by_user_id=user_id,
     )
     db.add(schema_row)
+    await db.flush()
     db.add(
         ContentCategoryActiveSchema(
             category_id=category.id,
@@ -245,6 +260,7 @@ async def patch_content_category(
                 created_by_user_id=user_id,
             )
         )
+        await db.flush()
         active = await db.get(ContentCategoryActiveSchema, category.id)
         if active:
             active.schema_version = next_version

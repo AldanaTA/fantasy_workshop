@@ -50,6 +50,15 @@ function App() {
   const [tokens, setTokens] = useState<TokenPair | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  useEffect(() => {
+    if (tokens) {
+      authStore.setCurrent(tokens);
+      return;
+    }
+
+    authStore.clearCurrent();
+  }, [tokens]);
+
 
   const saveTokens = (newTokens: TokenPair) => {
     authStore.setCurrent(newTokens);

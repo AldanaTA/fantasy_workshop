@@ -1,13 +1,8 @@
 import { API_CONFIG } from './apiConfig';
 import type { AuthIdentity } from './models';
-import { authStore } from './authStorage';
+import { authHeaders } from './authHeaders';
 
 const API_URL = API_CONFIG.VITE_API_BASE + '/' + API_CONFIG.VITE_AUTH_IDENTITIES
-
-const authHeaders = (token?: string) => {
-	const t = token ?? authStore.getAccessToken();
-	return t ? { Authorization: `Bearer ${t}` } : undefined;
-};
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 	const url = `${API_URL}${path}`;

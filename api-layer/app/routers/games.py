@@ -64,6 +64,7 @@ async def create_game(
             created_by_user_id=obj.owner_user_id,
         )
     )
+    await db.flush()
     db.add(
         ContentCategoryActiveSchema(
             category_id=category.id,

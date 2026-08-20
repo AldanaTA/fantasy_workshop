@@ -139,6 +139,8 @@ export type ContentCategoryFieldType =
 	| 'text'
 	| 'number'
 	| 'boolean'
+	| 'dice'
+	| 'formula'
 	| 'content_reference'
 	| 'content_reference_list'
 	| 'object_list';

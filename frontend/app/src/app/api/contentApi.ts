@@ -7,7 +7,7 @@ import type {
   ContentActiveVersion,
   ContentWithActiveVersion,
 } from './models';
-import { authStore } from './authStorage';
+import { authHeaders } from './authHeaders';
 import { fetchWithCache, invalidateCacheByPrefix } from './requestCache';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CONTENT;
@@ -43,11 +43,6 @@ function invalidateContentItemCaches(contentId: string) {
   invalidateCacheByPrefix(`content:versions:${contentId}`);
   invalidateCacheByPrefix(contentCacheKeys.active(contentId));
 }
-
-const authHeaders = (token?: string) => {
-  const t = token ?? authStore.getAccessToken();
-  return t ? { Authorization: `Bearer ${t}` } : undefined;
-};
 
 const resolveOptions = (options?: string | ApiRequestOptions): ApiRequestOptions => (
   typeof options === 'string' ? { token: options } : options ?? {}

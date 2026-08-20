@@ -1,13 +1,8 @@
 import { API_CONFIG } from './apiConfig';
 import type { CampaignChatMessage, CampaignChatMessagePage } from './models';
-import { authStore } from './authStorage';
+import { authHeaders, getAuthToken } from './authHeaders';
 
 const API_URL = API_CONFIG.VITE_API_BASE + "/" + API_CONFIG.VITE_CHAT;
-
-const authHeaders = (token?: string) => {
-	const t = token ?? authStore.getAccessToken();
-	return t ? { Authorization: `Bearer ${t}` } : undefined;
-};
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 	const url = `${API_URL}${path}`;
@@ -42,7 +37,7 @@ export const chatApi = {
 
 	connectCampaignChat: (campaignId: string, token?: string) => {
 		const base = wsBase() || (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
-		const t = token ?? authStore.getAccessToken();
+		const t = getAuthToken(token);
 		const url = `${base}/ws/campaigns/${campaignId}/chat?token=${encodeURIComponent(t ?? '')}`;
 		const ws = new WebSocket(url);
 		return ws;

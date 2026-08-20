@@ -10,6 +10,13 @@ import type {
   ContentCategorySchemaField,
   ContentPack,
 } from '../../api/models';
+import {
+  buildInitialSchemaValues,
+  coerceExpressionValue,
+  flattenReferenceSchemaFields,
+  humanizeSchemaKey,
+  isExpressionFieldType,
+} from '../../types/schemaFields';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Checkbox } from '../ui/checkbox';
@@ -48,7 +55,7 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
   const nameField = schemaFields.find((field) => field.key === 'name');
 
   const [summary, setSummary] = useState(content?.summary ?? '');
-  const [values, setValues] = useState<ContentValues>(() => buildInitialValues(schema));
+  const [values, setValues] = useState<ContentValues>(() => buildInitialSchemaValues(schema));
   const [referenceOptions, setReferenceOptions] = useState<ReferenceOptionsByField>({});
   const [isLoading, setIsLoading] = useState(Boolean(content));
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +63,7 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
   const isEditing = Boolean(content);
 
   useEffect(() => {
-    setValues(buildInitialValues(schema));
+    setValues(buildInitialSchemaValues(schema));
     setSummary(content?.summary ?? '');
   }, [category.id, content?.id]);
 
@@ -75,7 +82,7 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
       try {
         const active = await contentApi.getActive(content.id);
         if (!cancelled) {
-          const nextValues = buildInitialValues(schema, asObject(active.fields));
+          const nextValues = buildInitialSchemaValues(schema, asObject(active.fields));
           if (typeof content.name === 'string') {
             nextValues.name = content.name;
           }
@@ -84,7 +91,7 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
         }
       } catch (err) {
         if (!cancelled) {
-          const fallback = buildInitialValues(schema, { name: content.name });
+          const fallback = buildInitialSchemaValues(schema, { name: content.name });
           setValues(fallback);
           setSummary(content.summary ?? '');
           setError((err as Error)?.message || 'Unable to load content values.');
@@ -115,7 +122,7 @@ export function ContentMaker({ pack, category, content, onCreated, onCancel }: P
       }
 
       const visited = new Set<string>();
-      for (const field of flattenReferenceFields(schema)) {
+      for (const field of flattenReferenceSchemaFields(schema)) {
         const categoryIds = resolveAllowedCategoryIds(field, category, categoriesByName);
         const options: ReferenceOption[] = [];
 
@@ -300,7 +307,7 @@ function SchemaFieldEditor({
   onChange: (value: unknown) => void;
   referenceOptions: ReferenceOptionsByField;
 }) {
-  const label = field.label || humanizeKey(field.key);
+  const label = field.label || humanizeSchemaKey(field.key);
 
   if (field.type === 'text') {
     return (
@@ -339,6 +346,25 @@ function SchemaFieldEditor({
           onCheckedChange={(checked) => onChange(Boolean(checked))}
         />
         <Label htmlFor={fieldPath}>{label}</Label>
+      </div>
+    );
+  }
+
+  if (isExpressionFieldType(field.type)) {
+    const expressionValue = coerceExpressionValue(value, field.type, label);
+    return (
+      <div className="grid gap-2">
+        <Label htmlFor={fieldPath}>{label}</Label>
+        <Input
+          id={fieldPath}
+          value={expressionValue.expression}
+          onChange={(event) => onChange({
+            type: field.type,
+            expression: event.target.value,
+            label,
+          })}
+          placeholder={field.type === 'dice' ? '1d20 + 5' : 'max_hp + 20'}
+        />
       </div>
     );
   }
@@ -407,7 +433,7 @@ function SchemaFieldEditor({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => onChange([...rows, buildInitialValues(objectSchema)])}
+            onClick={() => onChange([...rows, buildInitialSchemaValues(objectSchema)])}
           >
             <Plus className="h-4 w-4" />
             Add Row
@@ -467,40 +493,6 @@ function SchemaFieldEditor({
   );
 }
 
-function buildInitialValues(schema: ContentCategorySchemaDefinition, seed?: Record<string, unknown>): ContentValues {
-  const values: ContentValues = {};
-  for (const field of schema.fields ?? []) {
-    const seededValue = seed?.[field.key];
-    if (seededValue !== undefined) {
-      values[field.key] = seededValue;
-      continue;
-    }
-
-    if (field.type === 'object_list' || field.type === 'content_reference_list') {
-      values[field.key] = [];
-    } else if (field.type === 'boolean') {
-      values[field.key] = false;
-    } else {
-      values[field.key] = '';
-    }
-  }
-  return values;
-}
-
-function flattenReferenceFields(schema: ContentCategorySchemaDefinition, prefix = ''): Array<{ path: string; field: ContentCategorySchemaField }> {
-  const entries: Array<{ path: string; field: ContentCategorySchemaField }> = [];
-  for (const field of schema.fields ?? []) {
-    const path = prefix ? `${prefix}.${field.key}` : field.key;
-    if (field.type === 'content_reference' || field.type === 'content_reference_list') {
-      entries.push({ path, field });
-    }
-    if (field.type === 'object_list' && field.object_schema) {
-      entries.push(...flattenReferenceFields(field.object_schema, path));
-    }
-  }
-  return entries;
-}
-
 function resolveAllowedCategoryIds(
   field: ContentCategorySchemaField,
   category: ContentCategory,
@@ -514,12 +506,6 @@ function resolveAllowedCategoryIds(
   return names
     .map((name) => categoriesByName.get(name)?.id)
     .filter((id): id is string => Boolean(id));
-}
-
-function humanizeKey(value: string) {
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (part) => part.toUpperCase());
 }
 
 function asObject(value: unknown): Record<string, unknown> {

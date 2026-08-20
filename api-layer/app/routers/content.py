@@ -273,6 +273,16 @@ async def _validate_schema_value(
             raise HTTPException(400, f"{label} must be a boolean")
         return
 
+    if field_type in {"dice", "formula"}:
+        if not isinstance(value, dict):
+            raise HTTPException(400, f"{label} must be an object")
+        if value.get("type") != field_type:
+            raise HTTPException(400, f"{label}.type must be '{field_type}'")
+        expression = value.get("expression")
+        if not isinstance(expression, str):
+            raise HTTPException(400, f"{label}.expression must be a string")
+        return
+
     if field_type in {"content_reference", "content_reference_list"}:
         values = [value] if field_type == "content_reference" else value
         if field_type == "content_reference_list" and not isinstance(values, list):
