@@ -57,7 +57,7 @@ export const contentCategoriesApi = {
 		pack_id: string;
 		name: string;
 		kind: 'generic' | 'character_sheet';
-		schema_definition: ContentCategorySchemaDefinition;
+		schema_definition?: ContentCategorySchemaDefinition;
 		sort_key?: number;
 	}, options?: string | ApiRequestOptions) => {
 		const { token, signal } = resolveOptions(options);
