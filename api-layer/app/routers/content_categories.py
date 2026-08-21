@@ -172,7 +172,11 @@ async def create_content_category(
         raise HTTPException(403, "Only the owner or editors can create content categories")
 
     kind = _normalize_kind(payload.kind)
-    schema_definition = _validate_schema_definition(kind, payload.schema_definition)
+    schema_definition = (
+        _validate_schema_definition(kind, payload.schema_definition)
+        if payload.schema_definition is not None
+        else None
+    )
 
     category = ContentCategory(
         id=new_id(),
@@ -184,20 +188,21 @@ async def create_content_category(
     db.add(category)
     await db.flush()
 
-    schema_row = ContentCategorySchema(
-        category_id=category.id,
-        schema_version=1,
-        schema_definition=schema_definition,
-        created_by_user_id=user_id,
-    )
-    db.add(schema_row)
-    await db.flush()
-    db.add(
-        ContentCategoryActiveSchema(
+    if schema_definition is not None:
+        schema_row = ContentCategorySchema(
             category_id=category.id,
             schema_version=1,
+            schema_definition=schema_definition,
+            created_by_user_id=user_id,
         )
-    )
+        db.add(schema_row)
+        await db.flush()
+        db.add(
+            ContentCategoryActiveSchema(
+                category_id=category.id,
+                schema_version=1,
+            )
+        )
 
     await db.commit()
     await db.refresh(category)

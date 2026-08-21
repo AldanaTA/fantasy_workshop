@@ -119,7 +119,9 @@ class ContentCategoryCreate(BaseModel):
     pack_id: UUID
     kind: str = Field(default="generic", pattern="^(generic|character_sheet)$")
     name: str = Field(min_length=1, max_length=200)
-    schema_definition: dict[str, Any] = Field(default_factory=default_category_schema_definition)
+    # Categories can be created before their schema is designed. Once a schema is
+    # saved, it becomes the active schema used for new content.
+    schema_definition: Optional[dict[str, Any]] = None
     sort_key: Optional[int] = None
 
 class ContentCategoryOrderUpdate(BaseModel):
